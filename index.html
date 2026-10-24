@@ -55,7 +55,7 @@ details summary{cursor:pointer;list-style:none;font-weight:700}details summary::
 .msg.a ul,.msg.a ol{padding-left:20px;margin:6px 0}.msg.a p{margin:6px 0}.msg.a h4{margin:10px 0 4px}.msg.a code{background:#e2e8f0;border-radius:6px;padding:1px 5px}
 textarea{width:100%;min-height:96px;border:2px solid var(--line);border-radius:14px;padding:12px;font:16px var(--f);resize:vertical;outline:0}textarea:focus{border-color:var(--brand)}
 .tabs{display:grid;grid-template-columns:1fr 1fr;gap:6px;background:#e2e8f0;border-radius:14px;padding:4px;margin-bottom:14px}.tabs button{height:42px;border:0;border-radius:11px;background:transparent;font:700 15px var(--f);color:var(--mute)}.tabs button.on{background:#fff;color:var(--ink);box-shadow:var(--sh)}
-</style></head><body>
+.mic{width:50px;height:50px;border:0;border-radius:14px;background:#f1f5f9;font-size:20px}.mic.on{background:#ef4444;animation:mp 1.2s infinite}@keyframes mp{0%{box-shadow:0 0 0 0 rgba(239,68,68,.55)}70%{box-shadow:0 0 0 12px rgba(239,68,68,0)}100%{box-shadow:0 0 0 0 rgba(239,68,68,0)}}</style></head><body>
 <header><div class="logo">TSS</div><div><b>Hour Tracker</b><small>TechSource Solutions</small></div><div class="sp"></div><button class="link" id="lo" style="display:none" onclick="location.reload()">Log out</button></header>
 <main id="m"></main><div id="toast"></div>
 <script>
@@ -136,16 +136,25 @@ function supportView(){clearInterval(tick);
  m.innerHTML=tabsHtml()+`<div class="up" id="up"></div><div class="card"><h2 style="font-size:18px">Tech Support</h2><div class="mute" style="font-size:13px">Ask about installing displays, projectors, panels, mounts, cabling, HDMI/HDBaseT, audio or control. Add a photo to identify a part.</div>
  <div id="chat">${chat.map(c=>`<div class="msg ${c.role==='user'?'u':'a'}">${c.role==='user'?esc(c.text)+(c.n?`<div class="mute" style="font-size:12px">📷 ${c.n} photo${c.n>1?'s':''}</div>`:''):md(c.text)}</div>`).join('')}${asking?'<div class="msg a"><span class="spin dk"></span> Thinking…</div>':''}</div>
  <textarea id="q" placeholder="${chat.length?'Ask a follow-up…':'e.g. How do I run HDBaseT from the wall plate to the projector?'}"></textarea>
- <div class="row" style="margin-top:10px"><label class="btn" style="display:inline-flex;align-items:center;gap:6px;line-height:50px">📷 Take Photo<input type="file" accept="image/*" capture="environment" hidden onchange="askShot(this)"></label>
+ <div class="row" style="margin-top:10px"><label class="btn" style="display:inline-flex;align-items:center;gap:6px;line-height:50px">📷 Take Photo<input type="file" accept="image/*" capture="environment" hidden onchange="askShot(this)"></label><button class="mic ${rec?'on':''}" id="mic" aria-label="Voice input" onclick="toggleMic()">🎤</button>
  <span class="chip" id="ach" style="${askImgs.length?'':'display:none'}">${askImgs.length} photo${askImgs.length>1?'s':''} attached <a href="#" onclick="askImgs=[];supportView();return false">✕</a></span>
  <button class="btn" onclick="sendAsk()" ${asking?'disabled':''}>Ask</button></div>${chat.length?'<div style="margin-top:10px"><button class="link" style="padding:0" onclick="chat=[];supportView()">New conversation</button></div>':''}</div>`;
  const c=$('chat');if(c&&c.lastElementChild)c.lastElementChild.scrollIntoView({block:'nearest'});}
 async function askShot(i){const f=i.files[0];i.value='';if(!f)return;try{const b=await createImageBitmap(f,{imageOrientation:'from-image'});const k=Math.min(1,1024/Math.max(b.width,b.height)),c=document.createElement('canvas');c.width=Math.round(b.width*k);c.height=Math.round(b.height*k);c.getContext('2d').drawImage(b,0,0,c.width,c.height);
  askImgs.push(c.toDataURL('image/jpeg',0.8).split(',')[1]);const q=$('q').value;supportView();$('q').value=q;toast(askImgs.length+' photo'+(askImgs.length>1?'s':'')+' attached');}catch(e){toast('Could not attach photo',1);}}
-async function sendAsk(){const q=$('q').value.trim();if(!q&&!askImgs.length)return toast('Type a question',1);if(asking)return;
+async function sendAsk(){if(rec)rec.stop();const q=$('q').value.trim();if(!q&&!askImgs.length)return toast('Type a question',1);if(asking)return;
  const history=chat.map(c=>({role:c.role,text:c.text})),imgs=askImgs;chat.push({role:'user',text:q||'(photo) What is this?',n:imgs.length});askImgs=[];asking=true;supportView();
  try{const r=await call({action:'ask',code,question:q,images:imgs,history});if(!r.answer)throw Error('Tech Support isn’t switched on yet. Ask Austin.');chat.push({role:'model',text:r.answer});chat=chat.slice(-12);}
  catch(e){chat.pop();askImgs=imgs;toast(e.message,1);setTimeout(()=>{if($('q'))$('q').value=q;},0);}asking=false;supportView();}
+
+let rec=null;
+function toggleMic(){if(rec){rec.stop();return;}const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+ if(!SR)return toast('Voice input isn’t supported here — tap the mic on your keyboard to dictate.',1);
+ const r=new SR();r.lang='en-US';r.interimResults=true;r.continuous=true;const base=($('q').value.trim()+' ').trimStart();
+ r.onresult=ev=>{let t='';for(let i=0;i<ev.results.length;i++)t+=ev.results[i][0].transcript;const q=$('q');if(q)q.value=base+t;};
+ r.onerror=ev=>{if(ev.error==='not-allowed'||ev.error==='service-not-allowed')toast('Microphone access was blocked — allow it in Settings, or use the keyboard mic.',1);};
+ r.onend=()=>{rec=null;const b=$('mic');if(b)b.classList.remove('on');};
+ try{r.start();rec=r;$('mic').classList.add('on');toast('Listening… tap 🎤 to stop');}catch(e){toast('Voice input isn’t supported here — tap the mic on your keyboard to dictate.',1);}}
 
 loginView();
 if(MOCK){code='7340';call({}).then(async s=>{S=s;$('lo').style.display='';await tx('rooms','readwrite',x=>x.put({k:sessKey(),list:['101','102','204']}));
