@@ -4,7 +4,7 @@ const TZ='America/New_York';
 // Per-employee settings. to/cc = notification recipients; weekReport = include week pay + take-home estimate; shiftPay = include this shift's pay.
 const EMP={
  '7340':{name:'William Griffin',email:'william@techsourcedsolutions.com',rate:30,to:'william@techsourcedsolutions.com',cc:'taylor@techsourcedsolutions.com,austin@techsourcedsolutions.com',weekReport:true,shiftPay:false},
- '1234':{name:'Paul Sorenson',email:'paulsor3@gmail.com',rate:30,to:'austin@techsourcedsolutions.com',cc:'austin@techsourcedsolutions.com',weekReport:false,shiftPay:true}};
+ '1234':{name:'Paul Sorenson',email:'paulsor3@gmail.com',rate:30,to:'paulsor3@gmail.com',cc:'austin@techsourcedsolutions.com',weekReport:true,shiftPay:true}};
 const JOBS=['WT Moore'];
 function sh(){const ss=SpreadsheetApp.getActive();let s=ss.getSheetByName('Punches');
  if(!s){s=ss.insertSheet('Punches');s.appendRow(['code','name','job','in_iso','out_iso','hours','photos','photo_folder']);}return s;}
