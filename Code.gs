@@ -2,7 +2,7 @@ var CC_EMAIL='taylor@techsourcedsolutions.com,austin@techsourcedsolutions.com';
 // TSShourtracker backend: Google Apps Script bound to a Google Sheet.
 // Deploy > New deployment > Web app, Execute as: Me, Access: Anyone. Paste the /exec URL into index.html (API const).
 const TZ='America/New_York';
-const EMP={'7340':{name:'William Griffin',email:'william@techsourcedsolutions.com',rate:30}};
+const EMP={'7340':{name:'William Griffin',email:'william@techsourcedsolutions.com',rate:30},'1234':{name:'Paul Sorenson',email:'paulsor3@gmail.com',rate:30}};
 const JOBS=['WT Moore'];
 function sh(){const ss=SpreadsheetApp.getActive();let s=ss.getSheetByName('Punches');
  if(!s){s=ss.insertSheet('Punches');s.appendRow(['code','name','job','in_iso','out_iso','hours','photos','photo_folder']);}return s;}
