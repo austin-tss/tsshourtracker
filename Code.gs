@@ -92,12 +92,16 @@ function ask(p,e){const key=PropertiesService.getScriptProperties().getProperty(
   const off=ans.trim().indexOf(REFUSAL)===0;if(off)ans=REFUSAL;
   supportLog(p,e,(q||'(spoken in video)')+(vid?' [video attached'+(p.video.dur?'':'')+']':''),imgs.length,ans,off);
  return {answer:ans,offTopic:off};}catch(x){return {error:x.message};}}
+function receipt(p,e){const ss=SpreadsheetApp.getActive(),n=cleanName(p.note).slice(0,60),t=new Date();
+ const f=sub(sub(sheetParent(),'Expenses'),e.name).createFile(Utilities.newBlob(Utilities.base64Decode(p.data),'image/jpeg',e.name+' '+Utilities.formatDate(t,TZ,'yyyy-MM-dd HH-mm-ss')+' ET'+(n?' - '+n:'')+'.jpg'));
+ const x=ss.getSheetByName('Expenses')||ss.insertSheet('Expenses').appendRow(['timestamp','code','name','note','file url']);x.appendRow([Utilities.formatDate(t,TZ,'yyyy-MM-dd HH:mm:ss'),p.code,e.name,n,f.getUrl()]);return {ok:true,url:f.getUrl()};}
 function out(o){return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);}
 function doPost(ev){let lock=null;try{
  const p=JSON.parse(ev.postData.contents),e=EMP[p.code];if(!e)return out({error:'Invalid code'});
  if(p.action==='master')return out(p.name?renameMaster(p.job,p.name):(()=>{const f=masterFolder(p.job);return {master:f.getName(),url:f.getUrl()};})());
  if(p.action==='ask')return out(ask(p,e));
  if(p.action==='photo')return out(uploadPhoto(p,e));
+ if(p.action==='receipt')return out(receipt(p,e));
  if(p.action==='punch'){lock=LockService.getScriptLock();lock.waitLock(20000);const open=rows(p.code).find(r=>!r.outT),now=new Date();
   if(!open){if(JOBS.indexOf(p.job)<0)return out({error:'Pick a job'});
    sh().appendRow([p.code,e.name,p.job,now.toISOString(),'','']);

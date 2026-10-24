@@ -54,7 +54,7 @@ details summary{cursor:pointer;list-style:none;font-weight:700}details summary::
 .msg{border-radius:16px;padding:12px 14px;margin:10px 0;font-size:15px;animation:in .3s ease both}.msg.u{background:#eff6ff;margin-left:28px}.msg.a{background:#f8fafc;border:1px solid var(--line)}
 .msg.a ul,.msg.a ol{padding-left:20px;margin:6px 0}.msg.a p{margin:6px 0}.msg.a h4{margin:10px 0 4px}.msg.a code{background:#e2e8f0;border-radius:6px;padding:1px 5px}
 textarea{width:100%;min-height:96px;border:2px solid var(--line);border-radius:14px;padding:12px;font:16px var(--f);resize:vertical;outline:0}textarea:focus{border-color:var(--brand)}
-.tabs{display:grid;grid-template-columns:1fr 1fr;gap:6px;background:#e2e8f0;border-radius:14px;padding:4px;margin-bottom:14px}.tabs button{height:42px;border:0;border-radius:11px;background:transparent;font:700 15px var(--f);color:var(--mute)}.tabs button.on{background:#fff;color:var(--ink);box-shadow:var(--sh)}
+.tabs{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;background:#e2e8f0;border-radius:14px;padding:4px;margin-bottom:14px}.tabs button{height:42px;border:0;border-radius:11px;background:transparent;font:700 15px var(--f);color:var(--mute)}.tabs button.on{background:#fff;color:var(--ink);box-shadow:var(--sh)}
 .mic{width:50px;height:50px;border:0;border-radius:14px;background:#f1f5f9;font-size:20px}.mic.on{background:#ef4444;animation:mp 1.2s infinite}@keyframes mp{0%{box-shadow:0 0 0 0 rgba(239,68,68,.55)}70%{box-shadow:0 0 0 12px rgba(239,68,68,0)}100%{box-shadow:0 0 0 0 rgba(239,68,68,0)}}</style></head><body>
 <header><div class="logo">TSS</div><div><b>Hour Tracker</b><small>TechSource Solutions</small></div><div class="sp"></div><button class="link" id="lo" style="display:none" onclick="location.reload()">Log out</button></header>
 <main id="m"></main><div id="toast"></div>
@@ -65,7 +65,7 @@ let code='',S=null,job=null,tick=null,mname='';const $=id=>document.getElementBy
 const esc=s=>String(s).replace(/[&<>"']/g,c=>'&#'+c.charCodeAt(0)+';');
 function toast(t,err){const e=$('toast');e.textContent=t;e.className='on'+(err?' err':'');clearTimeout(e._t);e._t=setTimeout(()=>e.className='',2600);}
 async function call(body){if(MOCK)return mock(body);const r=await fetch(API,{method:'POST',body:JSON.stringify(body)});const j=await r.json();if(j.error)throw Error(j.error);return j;}
-function mock(b){const t=new Date(Date.now()-(2*3600+17*60)*1000).toISOString();if(b.action==='master')return{master:'WT Moore'};if(b.action==='photo')return{ok:true};
+function mock(b){const t=new Date(Date.now()-(2*3600+17*60)*1000).toISOString();if(b.action==='master')return{master:'WT Moore'};if(b.action==='photo')return{ok:true};if(b.action==='receipt')return{ok:true,url:'#'};
  return{name:'William Griffin',rate:30,jobs:['WT Moore'],open:{job:'WT Moore',in:'Sat Oct 24, 7:02 AM ET',inIso:t},weeks:[{week:weekNow(),hours:31.5,regular:31.5,overtime:0,pay:945,shifts:[{job:'WT Moore',in:'Fri Oct 23, 7:00 AM ET',out:'Fri Oct 23, 3:30 PM ET',hours:8.5}]}]};}
 function weekNow(){const p=Object.fromEntries(new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit',weekday:'short'}).formatToParts(new Date()).map(x=>[x.type,x.value]));
  const d=new Date(Date.UTC(+p.year,p.month-1,+p.day));const back=(['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].indexOf(p.weekday));d.setUTCDate(d.getUTCDate()-back);return d.toISOString().slice(0,10);}
@@ -80,6 +80,7 @@ async function key(k){if(k==='c')code='';else if(k==='b')code=code.slice(0,-1);e
 function fmtT(ms){const s=Math.max(0,Math.floor(ms/1000));return[Math.floor(s/3600),Math.floor(s/60)%60,s%60].map(n=>String(n).padStart(2,'0')).join(':');}
 function render(){clearInterval(tick);const first=S.name.split(' ')[0];const w=S.weeks.find(x=>x.week===weekNow());
  if(tab==='support')return supportView();
+ if(tab==='receipts')return receiptView();
  let h=tabsHtml()+`<div class="up" id="up"></div><div class="card"><div class="row"><div><div class="mute">Hi ${esc(first)} 👋</div><h2>${S.open?'You’re on the clock':'Ready to start?'}</h2></div><span class="chip">$${S.rate}/hr</span></div>`;
  if(S.open){h+=`<div class="status" style="margin-top:14px"><span class="pulse"></span>${esc(S.open.job)} · since ${esc(S.open.in.replace(/^\w+ \w+ \d+, /,''))}</div><div class="timer" id="tm">00:00:00</div><div class="mute" style="margin-bottom:16px">Current shift</div>
   <button class="big out" id="pb" onclick="punch()">Clock out</button></div><div class="card" id="rooms"><div class="spin dk"></div></div>`;}
@@ -126,7 +127,7 @@ async function uploadAll(){if(uploading)return;uploading=true;let tries=0;const 
  uploading=false;}
 // ---------- Tech Support ----------
 let tab='clock',chat=[],askImgs=[],askVid=null,asking=false;
-function tabsHtml(){return `<div class="tabs"><button class="${tab==='clock'?'on':''}" onclick="tab='clock';render()">⏱ Time Clock</button><button class="${tab==='support'?'on':''}" onclick="tab='support';render()">🛠 Tech Support</button></div>`;}
+function tabsHtml(){return `<div class="tabs"><button class="${tab==='clock'?'on':''}" onclick="tab='clock';render()">⏱ Time Clock</button><button class="${tab==='support'?'on':''}" onclick="tab='support';render()">🛠 Support</button><button class="${tab==='receipts'?'on':''}" onclick="tab='receipts';render()">🧾 Receipts</button></div>`;}
 function md(t){const e=esc(t).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/`([^`]+)`/g,'<code>$1</code>');let o='',list=null;
  for(const ln of e.split('\n')){const b=ln.match(/^\s*[-*•]\s+(.*)/),n=ln.match(/^\s*\d+[.)]\s+(.*)/),hd=ln.match(/^#{1,4}\s+(.*)/);const want=b?'ul':n?'ol':null;
   if(list&&want!==list){o+=`</${list}>`;list=null;}if(want&&!list){o+=`<${want}>`;list=want;}
@@ -162,6 +163,18 @@ function toggleMic(){if(rec){rec.stop();return;}const SR=window.SpeechRecognitio
  r.onerror=ev=>{if(ev.error==='not-allowed'||ev.error==='service-not-allowed')toast('Microphone access was blocked — allow it in Settings, or use the keyboard mic.',1);};
  r.onend=()=>{rec=null;const b=$('mic');if(b)b.classList.remove('on');};
  try{r.start();rec=r;$('mic').classList.add('on');toast('Listening… tap 🎤 to stop');}catch(e){toast('Voice input isn’t supported here — tap the mic on your keyboard to dictate.',1);}}
+
+// ---------- Receipts ----------
+let rcpts=[],rcBusy=false;
+function receiptView(){clearInterval(tick);const today=new Date().toDateString(),list=rcpts.filter(r=>r.day===today);
+ m.innerHTML=tabsHtml()+`<div class="card"><h2 style="font-size:18px">Receipts</h2><div class="mute" style="font-size:13px;margin-bottom:12px">Snap a receipt. It uploads to the Expenses folder in Drive.</div>
+ <input id="rnote" class="job" style="width:100%;margin-bottom:12px" maxlength="60" placeholder="Note (optional), e.g. Home Depot - wire">
+ <label class="big" style="display:grid;place-items:center;background:linear-gradient(135deg,var(--brand),var(--brand2));color:#2563eb"><span>${rcBusy?'<span class="spin"></span> Uploading…':'📷 Take Photo'}</span><input type="file" accept="image/*" capture="environment" hidden ${rcBusy?'disabled':''} onchange="receiptShot(this)"></label>
+ ${list.length?`<div style="margin-top:14px;font-weight:700;font-size:14px">Today</div>`+list.map(r=>`<div class="shift"><span>🧾 ${esc(r.note||'Receipt')}</span><a href="${esc(r.url)}" target="_blank" class="mute">${esc(r.time)}</a></div>`).join(''):''}</div>`;}
+async function receiptShot(i){const f=i.files[0];i.value='';if(!f||rcBusy)return;const note=($('rnote').value||'').trim();rcBusy=true;receiptView();$('rnote').value=note;
+ try{const b=await createImageBitmap(f,{imageOrientation:'from-image'});const r=await call({action:'receipt',code,note,data:await b64(await toJpeg(b,b.width,b.height))});
+  rcpts.unshift({day:new Date().toDateString(),time:new Date().toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}),note,url:r.url||'#'});toast('Receipt uploaded');rcBusy=false;receiptView();}
+ catch(e){rcBusy=false;receiptView();$('rnote').value=note;toast('Upload failed: '+e.message,1);}}
 
 loginView();
 if(MOCK){code='7340';call({}).then(async s=>{S=s;$('lo').style.display='';await tx('rooms','readwrite',x=>x.put({k:sessKey(),list:['101','102','204']}));
