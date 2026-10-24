@@ -125,7 +125,7 @@ async function uploadAll(){if(uploading)return;uploading=true;let tries=0;const 
   tries++;const left=(await allPhotos()).filter(pend).length;if(left){const w=Math.min(60,5*tries);upMsg(`${left} photo${left>1?'s':''} failed · retrying in ${w}s`,done/ph.length*100);await new Promise(r=>setTimeout(r,w*1000));}}
  uploading=false;}
 // ---------- Tech Support ----------
-let tab='clock',chat=[],askImgs=[],asking=false;
+let tab='clock',chat=[],askImgs=[],askVid=null,asking=false;
 function tabsHtml(){return `<div class="tabs"><button class="${tab==='clock'?'on':''}" onclick="tab='clock';render()">⏱ Time Clock</button><button class="${tab==='support'?'on':''}" onclick="tab='support';render()">🛠 Tech Support</button></div>`;}
 function md(t){const e=esc(t).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/`([^`]+)`/g,'<code>$1</code>');let o='',list=null;
  for(const ln of e.split('\n')){const b=ln.match(/^\s*[-*•]\s+(.*)/),n=ln.match(/^\s*\d+[.)]\s+(.*)/),hd=ln.match(/^#{1,4}\s+(.*)/);const want=b?'ul':n?'ol':null;
@@ -136,16 +136,23 @@ function supportView(){clearInterval(tick);
  m.innerHTML=tabsHtml()+`<div class="up" id="up"></div><div class="card"><h2 style="font-size:18px">Tech Support</h2><div class="mute" style="font-size:13px">Ask about installing displays, projectors, panels, mounts, cabling, HDMI/HDBaseT, audio or control. Add a photo to identify a part.</div>
  <div id="chat">${chat.map(c=>`<div class="msg ${c.role==='user'?'u':'a'}">${c.role==='user'?esc(c.text)+(c.n?`<div class="mute" style="font-size:12px">📷 ${c.n} photo${c.n>1?'s':''}</div>`:''):md(c.text)}</div>`).join('')}${asking?'<div class="msg a"><span class="spin dk"></span> Thinking…</div>':''}</div>
  <textarea id="q" placeholder="${chat.length?'Ask a follow-up…':'e.g. How do I run HDBaseT from the wall plate to the projector?'}"></textarea>
- <div class="row" style="margin-top:10px"><label class="btn" style="display:inline-flex;align-items:center;gap:6px;line-height:50px">📷 Take Photo<input type="file" accept="image/*" capture="environment" hidden onchange="askShot(this)"></label><button class="mic ${rec?'on':''}" id="mic" aria-label="Voice input" onclick="toggleMic()">🎤</button>
+ <div class="row" style="margin-top:10px"><label class="btn" style="display:inline-flex;align-items:center;gap:6px;line-height:50px">📷 Take Photo<input type="file" accept="image/*" capture="environment" hidden onchange="askShot(this)"></label><label class="btn" style="display:inline-flex;align-items:center;gap:6px;line-height:50px">🎥 Record Video<input type="file" accept="video/*" capture="environment" hidden onchange="askVidShot(this)"></label><button class="mic ${rec?'on':''}" id="mic" aria-label="Voice input" onclick="toggleMic()">🎤</button>
  <span class="chip" id="ach" style="${askImgs.length?'':'display:none'}">${askImgs.length} photo${askImgs.length>1?'s':''} attached <a href="#" onclick="askImgs=[];supportView();return false">✕</a></span>
+ <span class="chip" style="${askVid?'':'display:none'}">🎥 Video attached${askVid&&askVid.dur?' ('+askVid.dur+'s)':''} <a href="#" onclick="askVid=null;supportView();return false">✕</a></span>
  <button class="btn" onclick="sendAsk()" ${asking?'disabled':''}>Ask</button></div>${chat.length?'<div style="margin-top:10px"><button class="link" style="padding:0" onclick="chat=[];supportView()">New conversation</button></div>':''}</div>`;
  const c=$('chat');if(c&&c.lastElementChild)c.lastElementChild.scrollIntoView({block:'nearest'});}
 async function askShot(i){const f=i.files[0];i.value='';if(!f)return;try{const b=await createImageBitmap(f,{imageOrientation:'from-image'});const k=Math.min(1,1024/Math.max(b.width,b.height)),c=document.createElement('canvas');c.width=Math.round(b.width*k);c.height=Math.round(b.height*k);c.getContext('2d').drawImage(b,0,0,c.width,c.height);
  askImgs.push(c.toDataURL('image/jpeg',0.8).split(',')[1]);const q=$('q').value;supportView();$('q').value=q;toast(askImgs.length+' photo'+(askImgs.length>1?'s':'')+' attached');}catch(e){toast('Could not attach photo',1);}}
-async function sendAsk(){if(rec)rec.stop();const q=$('q').value.trim();if(!q&&!askImgs.length)return toast('Type a question',1);if(asking)return;
- const history=chat.map(c=>({role:c.role,text:c.text})),imgs=askImgs;chat.push({role:'user',text:q||'(photo) What is this?',n:imgs.length});askImgs=[];asking=true;supportView();
- try{const r=await call({action:'ask',code,question:q,images:imgs,history});if(!r.answer)throw Error('Tech Support isn’t switched on yet. Ask Austin.');chat.push({role:'model',text:r.answer});chat=chat.slice(-12);}
- catch(e){chat.pop();askImgs=imgs;toast(e.message,1);setTimeout(()=>{if($('q'))$('q').value=q;},0);}asking=false;supportView();}
+function vidDur(f){return new Promise(res=>{const v=document.createElement('video'),u=URL.createObjectURL(f);v.preload='metadata';v.muted=true;const done=d=>{URL.revokeObjectURL(u);res(d);};v.onloadedmetadata=()=>done(isFinite(v.duration)?v.duration:0);v.onerror=()=>done(0);setTimeout(()=>done(0),5000);v.src=u;});}
+async function askVidShot(i){const f=i.files[0];i.value='';if(!f)return;try{const d=await vidDur(f);
+ if(d>62||f.size>15e6)return toast('That video is too long ('+(d?Math.round(d)+'s':Math.round(f.size/1e6)+'MB')+'). Please record a shorter clip, under 60 seconds.',1);
+ const b64=await new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>res(String(fr.result).split(',')[1]);fr.onerror=rej;fr.readAsDataURL(f);});
+ if(b64.length>20e6)return toast('That video is too big. Please record a shorter clip, under 60 seconds.',1);
+ askVid={data:b64,mime:(f.type||'video/mp4').split(';')[0],dur:Math.round(d)};const q=$('q').value;supportView();$('q').value=q;toast('Video attached');}catch(e){toast('Could not attach video',1);}}
+async function sendAsk(){if(rec)rec.stop();const q=$('q').value.trim();if(!q&&!askImgs.length&&!askVid)return toast('Type a question',1);if(asking)return;
+ const history=chat.map(c=>({role:c.role,text:c.text})),imgs=askImgs,vid=askVid;chat.push({role:'user',text:(q||(vid?'(video)':'(photo) What is this?'))+(vid&&q?' 🎥':''),n:imgs.length});askImgs=[];askVid=null;asking=true;supportView();
+ try{const r=await call({action:'ask',code,question:q,images:imgs,history,video:vid?{data:vid.data,mimeType:vid.mime}:undefined});if(!r.answer)throw Error('Tech Support isn’t switched on yet. Ask Austin.');chat.push({role:'model',text:r.answer});chat=chat.slice(-12);}
+ catch(e){chat.pop();askImgs=imgs;askVid=vid;toast(e.message,1);setTimeout(()=>{if($('q'))$('q').value=q;},0);}asking=false;supportView();}
 
 let rec=null;
 function toggleMic(){if(rec){rec.stop();return;}const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
