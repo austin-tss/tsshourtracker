@@ -42,9 +42,8 @@ h2{margin:0 0 4px;font-size:20px;letter-spacing:-.01em}.mute{color:var(--mute);f
 .add{display:flex;gap:8px;margin-top:12px}.add input{flex:1;min-width:0;height:50px;border:2px solid var(--line);border-radius:14px;padding:0 14px;font:600 17px var(--f);outline:0}.add input:focus{border-color:var(--brand)}
 .btn{height:50px;border:0;border-radius:14px;padding:0 18px;background:var(--brand);color:#fff;font:700 15px var(--f)}.btn.sec{background:#f1f5f9;color:var(--ink)}
 .chip{display:inline-flex;align-items:center;gap:6px;background:#f1f5f9;border-radius:99px;padding:6px 12px;font-size:13px;font-weight:600}
-video{width:100%;border-radius:16px;background:#0f172a;aspect-ratio:3/4;object-fit:cover}
-.shutter{width:76px;height:76px;border-radius:50%;border:5px solid #fff;background:var(--brand);box-shadow:0 0 0 3px var(--brand);display:block;margin:14px auto 4px}
-.thumbs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:10px}.thumbs img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px}
+
+
 .shift{display:flex;justify-content:space-between;padding:10px 0;border-top:1px solid var(--line);font-size:14px}
 details summary{cursor:pointer;list-style:none;font-weight:700}details summary::-webkit-details-marker{display:none}
 #toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translate(-50%,40px);opacity:0;background:#0f172a;color:#fff;padding:12px 18px;border-radius:14px;font-weight:600;font-size:14px;transition:.3s;z-index:20;max-width:90vw}
@@ -87,7 +86,7 @@ function render(){clearInterval(tick);const first=S.name.split(' ')[0];const w=S
  if(S.weeks.length)h+=`<div class="card"><details><summary class="row">History <span class="mute">${S.weeks.length} week${S.weeks.length>1?'s':''} ▾</span></summary>${S.weeks.map(x=>`<div style="margin-top:14px"><div class="row"><b>Week of ${x.week}</b><b>$${x.pay.toFixed(2)}</b></div><div class="mute" style="font-size:13px">${x.hours} h · reg ${x.regular} · OT ${x.overtime}</div>${x.shifts.map(s=>`<div class="shift"><span>${esc(s.job)}<br><span class="mute">${esc(s.in)} → ${esc(s.out.replace(/^\w+ \w+ \d+, /,''))}</span></span><b>${s.hours} h</b></div>`).join('')}</div>`).join('')}</details></div>`;
  m.innerHTML=h;requestAnimationFrame(()=>document.querySelectorAll('.bar i').forEach(b=>b.style.width=b.dataset.w+'%'));
  if(S.open){const t0=new Date(S.open.inIso).getTime(),f=()=>{const e=$('tm');if(e)e.textContent=fmtT(Date.now()-t0);};f();tick=setInterval(f,1000);renderRooms();}}
-async function punch(){const b=$('pb'),wasOpen=S.open,lbl=b.textContent;b.disabled=true;b.innerHTML='<span class="spin"></span>';stopCam();
+async function punch(){const b=$('pb'),wasOpen=S.open,lbl=b.textContent;b.disabled=true;b.innerHTML='<span class="spin"></span>';
  try{const n=wasOpen?(await allPhotos()).filter(p=>p.code===code&&p.inIso===wasOpen.inIso).length:0;S=await call({action:'punch',code,job,photos:n});render();toast(wasOpen?'Clocked out ✓':'Clocked in ✓');if(wasOpen)uploadAll();}
  catch(e){b.disabled=false;b.textContent=lbl;toast(e.message,1);}}
 // ---------- Photo storage (IndexedDB, never the gallery) ----------
@@ -98,22 +97,19 @@ const sessKey=()=>code+'|'+(S&&S.open?S.open.inIso:'');
 async function rooms(){const r=await tx('rooms','readonly',s=>s.get(sessKey()));return r?r.list:[];}
 async function addRoom(){const n=$('roomNo').value.trim().replace(/[^\w .-]/g,'');if(!n)return toast('Enter a room number',1);const l=await rooms();if(!l.includes(n))l.push(n);await tx('rooms','readwrite',s=>s.put({k:sessKey(),list:l}));openRoom(n);}
 async function renameM(){const n=prompt('Drive folder name for '+S.open.job+' (e.g. the school):',mname);if(!n)return;try{const r=await call({action:'master',code,job:S.open.job,name:n});mname=r.master;$('mname').textContent=mname;toast('Folder renamed ✓');}catch(e){toast(e.message,1);}}
-let cur=null,stream=null;
+let cur=null;
 async function renderRooms(){const el=$('rooms');if(!el||!S.open)return;if(!mname){try{mname=(await call({action:'master',code,job:S.open.job})).master;}catch(e){mname=S.open.job;}}
  const ph=(await allPhotos()).filter(p=>p.inIso===S.open.inIso),l=await rooms();
  el.innerHTML=`<div class="row"><h2 style="font-size:17px">Rooms</h2><button class="chip" style="border:0" onclick="renameM()">📁 <span id="mname">${esc(mname)}</span> ✎</button></div><div class="mute" style="font-size:13px">Photos stay in this app and upload to Drive when you clock out.</div>
  <div class="add"><input id="roomNo" inputmode="numeric" placeholder="Room number" onkeydown="if(event.key==='Enter')addRoom()"><button class="btn" onclick="addRoom()">Add</button></div>
- <div class="tiles">${l.map(r=>{const rp=ph.filter(p=>p.room===r),last=rp[rp.length-1];return last?`<button class="tile" onclick="openRoom('${esc(r)}')"><img src="${URL.createObjectURL(last.blob)}"><span class="lbl"><b>Room ${esc(r)}</b>${rp.length} photo${rp.length>1?'s':''}</span></button>`:`<button class="tile empty" onclick="openRoom('${esc(r)}')">📷<span class="lbl" style="position:absolute"><b>Room ${esc(r)}</b>No photos yet</span></button>`;}).join('')}</div>`;}
-async function openRoom(r){cur=r;const ph=(await allPhotos()).filter(p=>p.inIso===S.open.inIso&&p.room===r);
- $('rooms').innerHTML=`<div class="row"><button class="link" style="padding:0" onclick="stopCam();renderRooms()">‹ Rooms</button><span class="chip">${ph.length} photo${ph.length===1?'':'s'}</span></div><h2 style="margin:6px 0 10px">Room ${esc(r)}</h2>
- <video id="cam" autoplay playsinline muted></video><button class="shutter" aria-label="Take photo" onclick="snap()"></button><input id="fb" type="file" accept="image/*" capture="environment" hidden onchange="fileShot(this)">
- <div class="thumbs">${ph.map(p=>`<img src="${URL.createObjectURL(p.blob)}">`).join('')}</div>`;startCam();}
-async function startCam(){try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1920}}});$('cam').srcObject=stream;}catch(e){stream=null;const v=$('cam');if(v)v.style.display='none';}}
-function stopCam(){if(stream)stream.getTracks().forEach(t=>t.stop());stream=null;}
+ <div class="tiles">${l.map(r=>{const n=ph.filter(p=>p.room===r).length;return `<button class="tile empty" onclick="openRoom('${esc(r)}')">${n?'🗂️':'📷'}<span class="lbl" style="position:absolute"><b>Room ${esc(r)}</b>${n?n+' photo'+(n>1?'s':'')+' saved':'No photos yet'}</span></button>`;}).join('')}</div>`;}
+async function openRoom(r){cur=r;const n=(await allPhotos()).filter(p=>p.inIso===S.open.inIso&&p.room===r).length;
+ $('rooms').innerHTML=`<div class="row"><button class="link" style="padding:0" onclick="renderRooms()">‹ Rooms</button></div><h2 style="margin:6px 0 4px">Room ${esc(r)}</h2>
+ <div class="mute" id="pc" style="margin-bottom:14px">${n?n+' photo'+(n>1?'s':'')+' saved · uploads at clock-out':'No photos yet'}</div>
+ <label class="btn" style="display:inline-flex;align-items:center;gap:8px;line-height:50px">📷 Take Photo<input type="file" accept="image/*" capture="environment" hidden onchange="fileShot(this)"></label>`;}
 async function toJpeg(src,w,h){const k=Math.min(1,1600/Math.max(w,h)),c=document.createElement('canvas');c.width=Math.round(w*k);c.height=Math.round(h*k);c.getContext('2d').drawImage(src,0,0,c.width,c.height);return new Promise(ok=>c.toBlob(ok,'image/jpeg',0.82));}
-async function save(blob){await tx('photos','readwrite',s=>s.add({code,inIso:S.open.inIso,room:cur,takenAt:new Date().toISOString(),blob}));toast('Photo saved to Room '+cur);openRoom(cur);}
-async function snap(){const v=$('cam');if(!stream||!v.videoWidth)return $('fb').click();stopCam();await save(await toJpeg(v,v.videoWidth,v.videoHeight));}
-async function fileShot(i){const f=i.files[0];if(!f)return;const b=await createImageBitmap(f);stopCam();await save(await toJpeg(b,b.width,b.height));}
+async function save(blob){await tx('photos','readwrite',s=>s.add({code,inIso:S.open.inIso,room:cur,takenAt:new Date().toISOString(),blob}));const n=(await allPhotos()).filter(p=>p.inIso===S.open.inIso&&p.room===cur).length;toast('Photo '+n+' saved for Room '+cur);openRoom(cur);}
+async function fileShot(i){const f=i.files[0];if(!f)return;try{const b=await createImageBitmap(f,{imageOrientation:'from-image'});await save(await toJpeg(b,b.width,b.height));}catch(e){toast('Could not save photo: '+e.message,1);}i.value='';}
 const b64=b=>new Promise(ok=>{const r=new FileReader();r.onload=()=>ok(r.result.split(',')[1]);r.readAsDataURL(b);});
 let uploading=false;
 function upMsg(t,pct){const e=$('up');if(e)e.innerHTML=t?`<div class="card" style="padding:14px"><div class="row" style="font-size:14px;font-weight:600"><span>${t}</span>${pct<100?'<span class="spin dk"></span>':'✅'}</div><div class="bar" style="margin-top:8px"><i style="width:${pct}%"></i></div></div>`:'';}

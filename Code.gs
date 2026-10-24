@@ -1,8 +1,10 @@
-var CC_EMAIL='taylor@techsourcedsolutions.com,austin@techsourcedsolutions.com';
 // TSShourtracker backend: Google Apps Script bound to a Google Sheet.
 // Deploy > New deployment > Web app, Execute as: Me, Access: Anyone. Paste the /exec URL into index.html (API const).
 const TZ='America/New_York';
-const EMP={'7340':{name:'William Griffin',email:'william@techsourcedsolutions.com',rate:30},'1234':{name:'Paul Sorenson',email:'paulsor3@gmail.com',rate:30}};
+// Per-employee settings. to/cc = notification recipients; weekReport = include week pay + take-home estimate; shiftPay = include this shift's pay.
+const EMP={
+ '7340':{name:'William Griffin',email:'william@techsourcedsolutions.com',rate:30,to:'william@techsourcedsolutions.com',cc:'taylor@techsourcedsolutions.com,austin@techsourcedsolutions.com',weekReport:true,shiftPay:false},
+ '1234':{name:'Paul Sorenson',email:'paulsor3@gmail.com',rate:30,to:'austin@techsourcedsolutions.com',cc:'austin@techsourcedsolutions.com',weekReport:false,shiftPay:true}};
 const JOBS=['WT Moore'];
 function sh(){const ss=SpreadsheetApp.getActive();let s=ss.getSheetByName('Punches');
  if(!s){s=ss.insertSheet('Punches');s.appendRow(['code','name','job','in_iso','out_iso','hours','photos','photo_folder']);}return s;}
@@ -55,6 +57,9 @@ function uploadPhoto(p,e){const r=sessionRow(p.code,p.inIso);if(!r)return {error
  if(rf.getFilesByName(name).hasNext())return {ok:true,dup:true};// idempotent retry
  rf.createFile(Utilities.newBlob(Utilities.base64Decode(p.data),'image/jpeg',name));
  const c=sh().getRange(r.row,7,1,2);const v=c.getValues()[0];c.setValues([[Number(v[0]||0)+1,sf.getUrl()]]);return {ok:true};}
+function shiftPayReport(code,inT,h){const e=EMP[code],w=summary(code).weeks.find(x=>x.week===weekKey(inT));const prior=w?Math.max(0,w.hours-h):0;
+ const reg=Math.max(0,Math.min(h,40-prior)),ot=h-reg,r=e.rate;
+ return '\n\n--- Pay earned this shift ---\nRegular: '+reg.toFixed(2)+' h x $'+r+' = $'+(reg*r).toFixed(2)+(ot>0?'\nOvertime: '+ot.toFixed(2)+' h x $'+(r*1.5)+' = $'+(ot*r*1.5).toFixed(2):'')+'\nShift pay: $'+(reg*r+ot*r*1.5).toFixed(2);}
 function out(o){return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);}
 function doPost(ev){const lock=LockService.getScriptLock();lock.waitLock(10000);try{
  const p=JSON.parse(ev.postData.contents),e=EMP[p.code];if(!e)return out({error:'Invalid code'});
@@ -63,7 +68,7 @@ function doPost(ev){const lock=LockService.getScriptLock();lock.waitLock(10000);
  if(p.action==='punch'){const open=rows(p.code).find(r=>!r.outT),now=new Date();
   if(!open){if(JOBS.indexOf(p.job)<0)return out({error:'Pick a job'});
    sh().appendRow([p.code,e.name,p.job,now.toISOString(),'','']);
-   MailApp.sendEmail(e.email,'TSShourtracker: Clocked in – '+p.job,e.name+' clocked in\nJob: '+p.job+'\nTime: '+fmt(now),{cc:CC_EMAIL});}
+   MailApp.sendEmail(e.to,'TSShourtracker: Clocked in – '+p.job,e.name+' clocked in\nJob: '+p.job+'\nTime: '+fmt(now),{cc:e.cc});}
   else{const h=(now-new Date(open.inT))/36e5,np=Number(p.photos||0);let pl='';if(np>0){try{pl='\nPhotos: '+np+' uploading to '+masterFolder(open.job).getUrl();}catch(x){pl='\nPhotos: '+np+' uploading';}}sh().getRange(open.row,5,1,2).setValues([[now.toISOString(),h.toFixed(4)]]);
-   MailApp.sendEmail(e.email,'TSShourtracker: Clocked out – '+open.job,e.name+' clocked out\nJob: '+open.job+'\nIn: '+fmt(open.inT)+'\nOut: '+fmt(now)+'\nShift hours: '+h.toFixed(2)+pl+weekReport(p.code,open.inT),{cc:CC_EMAIL});}}
+   MailApp.sendEmail(e.to,'TSShourtracker: Clocked out – '+open.job,e.name+' clocked out\nJob: '+open.job+'\nIn: '+fmt(open.inT)+'\nOut: '+fmt(now)+'\nShift hours: '+h.toFixed(2)+pl+(e.shiftPay?shiftPayReport(p.code,open.inT,h):'')+(e.weekReport?weekReport(p.code,open.inT):''),{cc:e.cc});}}
  return out(summary(p.code));}finally{lock.releaseLock();}}
