@@ -17,9 +17,11 @@ const allPhotos=()=>tx('photos','readonly',s=>s.getAll());
 const sessKey=()=>code+'|'+(S&&S.open?S.open.inIso:'');
 async function rooms(){const r=await tx('rooms','readonly',s=>s.get(sessKey()));return r?r.list:[];}
 async function addRoom(){const n=$('roomNo').value.trim();if(!n)return;const l=await rooms();if(!l.includes(n))l.push(n);await tx('rooms','readwrite',s=>s.put({k:sessKey(),list:l}));openRoom(n);}
+async function renameM(){const n=prompt('Master folder name for '+S.open.job+' (e.g. school name):',$('mname').textContent);if(!n)return;try{const r=await call({action:'master',code,job:S.open.job,name:n});$('mname').textContent=r.master;}catch(e){alert(e.message);}}
 let cur=null,stream=null;
 async function renderRooms(){if(!S.open){$('rooms')?.remove();return;}const ph=(await allPhotos()).filter(p=>p.inIso===S.open.inIso);const l=await rooms();
- const h=`<b>Rooms</b><input id=roomNo inputmode=numeric placeholder="Room number"><button onclick=addRoom()>Add room</button>`+l.map(r=>`<button class=room onclick="openRoom('${r.replace(/'/g,'')}')">Room ${r} · ${ph.filter(p=>p.room===r).length} photos</button>`).join('');
+ let mn='';try{mn=(await call({action:'master',code,job:S.open.job})).master;}catch(e){mn='(offline)';}
+ const h=`<div>Drive folder: <b id=mname>${mn}</b> <a href=# onclick="renameM();return false">Rename</a></div><b>Rooms</b><input id=roomNo inputmode=numeric placeholder="Room number"><button onclick=addRoom()>Add room</button>`+l.map(r=>`<button class=room onclick="openRoom('${r.replace(/'/g,'')}')">Room ${r} · ${ph.filter(p=>p.room===r).length} photos</button>`).join('');
  if(!$('rooms'))$('app').insertAdjacentHTML('afterend','<div id=rooms class="card rooms"></div>');$('rooms').innerHTML=h;}
 async function openRoom(r){cur=r;const ph=(await allPhotos()).filter(p=>p.inIso===S.open.inIso&&p.room===r);
  $('rooms').innerHTML=`<b>Room ${r}</b><video id=cam autoplay playsinline muted style="display:none"></video><button onclick=snap()>Take photo</button><input id=fb type=file accept="image/*" capture=environment style="display:none" onchange="fileShot(this)"><div class=thumbs>${ph.map(p=>`<img src="${URL.createObjectURL(p.blob)}">`).join('')}</div><button style="background:#6b7280" onclick="stopCam();renderRooms()">Back to rooms</button>`;startCam();}

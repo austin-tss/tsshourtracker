@@ -36,14 +36,21 @@ function weekReport(code,d){const w=summary(code).weeks.find(x=>x.week===weekKey
  '\nAssumptions: weekly pay, single, standard deduction, no extra W-4/G-4 adjustments; 2026 IRS Pub 15-T percentage method; GA 4.99% after $15,000 std deduction.';}
 
 // ===== Photos (Drive). Needs Drive scope: re-authorize when deploying this version. =====
-const PHOTO_ROOT='TSShourtracker Photos';
 function sub(parent,name){const it=parent.getFoldersByName(name);return it.hasNext()?it.next():parent.createFolder(name);}
-function sessionFolder(e,job,inIso){const f=DriveApp.getFileById(SpreadsheetApp.getActive().getId()).getParents();
- const base=f.hasNext()?f.next():DriveApp.getRootFolder();const d=new Date(inIso);
- return sub(sub(base,PHOTO_ROOT),Utilities.formatDate(d,TZ,'yyyy-MM-dd')+' '+e.name+' '+job+' '+Utilities.formatDate(d,TZ,'h-mm a'));}
+function sheetParent(){const f=DriveApp.getFileById(SpreadsheetApp.getActive().getId()).getParents();return f.hasNext()?f.next():DriveApp.getRootFolder();}
+function mastersSheet(){const ss=SpreadsheetApp.getActive();let m=ss.getSheetByName('Masters');if(!m){m=ss.insertSheet('Masters');m.appendRow(['job','folder_id','folder_name']);}return m;}
+// One master folder per job, next to the Sheet. Job -> folder ID kept in Masters tab so renames are reused.
+function masterFolder(job){const m=mastersSheet(),v=m.getDataRange().getValues();
+ for(let i=1;i<v.length;i++)if(v[i][0]===job){try{const f=DriveApp.getFolderById(v[i][1]);if(!f.isTrashed())return f;}catch(x){}
+  const f=sub(sheetParent(),v[i][2]||job);m.getRange(i+1,2,1,2).setValues([[f.getId(),f.getName()]]);return f;}
+ const f=sub(sheetParent(),job);m.appendRow([job,f.getId(),f.getName()]);return f;}
+function cleanName(n){return String(n||'').replace(/[\\/:*?"<>|]/g,'').trim().slice(0,80);}
+function renameMaster(job,name){if(JOBS.indexOf(job)<0)return {error:'Unknown job'};name=cleanName(name);if(!name)return {error:'Enter a name'};
+ const f=masterFolder(job);f.setName(name);const m=mastersSheet(),v=m.getDataRange().getValues();
+ for(let i=1;i<v.length;i++)if(v[i][0]===job)m.getRange(i+1,3).setValue(name);return {ok:true,master:name,url:f.getUrl()};}
 function sessionRow(code,inIso){return rows(code).find(r=>String(r.inT)===String(inIso));}
 function uploadPhoto(p,e){const r=sessionRow(p.code,p.inIso);if(!r)return {error:'Unknown session'};
- const room=String(p.room).replace(/[^\w .-]/g,'').slice(0,40)||'0';const sf=sessionFolder(e,r.job,r.inT),rf=sub(sf,'Room '+room);
+ const room=String(p.room).replace(/[^\w .-]/g,'').slice(0,40)||'0';const sf=masterFolder(r.job),rf=sub(sf,'Room '+room);
  const name='Room '+room+' '+Utilities.formatDate(new Date(p.takenAt),TZ,'yyyy-MM-dd HH-mm-ss')+(p.seq?' '+p.seq:'')+'.jpg';
  if(rf.getFilesByName(name).hasNext())return {ok:true,dup:true};// idempotent retry
  rf.createFile(Utilities.newBlob(Utilities.base64Decode(p.data),'image/jpeg',name));
@@ -51,11 +58,12 @@ function uploadPhoto(p,e){const r=sessionRow(p.code,p.inIso);if(!r)return {error
 function out(o){return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);}
 function doPost(ev){const lock=LockService.getScriptLock();lock.waitLock(10000);try{
  const p=JSON.parse(ev.postData.contents),e=EMP[p.code];if(!e)return out({error:'Invalid code'});
+ if(p.action==='master')return out(p.name?renameMaster(p.job,p.name):(()=>{const f=masterFolder(p.job);return {master:f.getName(),url:f.getUrl()};})());
  if(p.action==='photo')return out(uploadPhoto(p,e));
  if(p.action==='punch'){const open=rows(p.code).find(r=>!r.outT),now=new Date();
   if(!open){if(JOBS.indexOf(p.job)<0)return out({error:'Pick a job'});
    sh().appendRow([p.code,e.name,p.job,now.toISOString(),'','']);
    MailApp.sendEmail(e.email,'TSShourtracker: Clocked in – '+p.job,e.name+' clocked in\nJob: '+p.job+'\nTime: '+fmt(now),{cc:CC_EMAIL});}
-  else{const h=(now-new Date(open.inT))/36e5,np=Number(p.photos||0);let pl='';if(np>0){try{pl='\nPhotos: '+np+' uploading to '+sessionFolder(e,open.job,open.inT).getUrl();}catch(x){pl='\nPhotos: '+np+' uploading';}}sh().getRange(open.row,5,1,2).setValues([[now.toISOString(),h.toFixed(4)]]);
+  else{const h=(now-new Date(open.inT))/36e5,np=Number(p.photos||0);let pl='';if(np>0){try{pl='\nPhotos: '+np+' uploading to '+masterFolder(open.job).getUrl();}catch(x){pl='\nPhotos: '+np+' uploading';}}sh().getRange(open.row,5,1,2).setValues([[now.toISOString(),h.toFixed(4)]]);
    MailApp.sendEmail(e.email,'TSShourtracker: Clocked out – '+open.job,e.name+' clocked out\nJob: '+open.job+'\nIn: '+fmt(open.inT)+'\nOut: '+fmt(now)+'\nShift hours: '+h.toFixed(2)+pl+weekReport(p.code,open.inT),{cc:CC_EMAIL});}}
  return out(summary(p.code));}finally{lock.releaseLock();}}
