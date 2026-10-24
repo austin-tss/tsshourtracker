@@ -1,12 +1,40 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>TSShourtracker</title>
-<style>body{font-family:system-ui,sans-serif;background:#f6f7f9;color:#111;margin:0;padding:16px;max-width:520px;margin:auto}h1{font-size:22px}.card{background:#fff;border-radius:12px;padding:16px;margin:12px 0;box-shadow:0 1px 3px #0002}input,select,button{font-size:18px;padding:12px;width:100%;box-sizing:border-box;margin:6px 0;border-radius:8px;border:1px solid #ccc}button{background:#1d4ed8;color:#fff;border:0}button.out{background:#b91c1c}table{width:100%;font-size:14px;border-collapse:collapse}td{padding:4px 0;border-bottom:1px solid #eee}.err{color:#b91c1c}</style></head><body>
-<h1>TSShourtracker</h1><div id="app" class="card"><input id="code" inputmode="numeric" type="password" placeholder="Employee code"><button onclick="login()">Log in</button><div id="msg" class="err"></div></div>
+<style>body{font-family:system-ui,sans-serif;background:#f6f7f9;color:#111;margin:0;padding:16px;max-width:520px;margin:auto}h1{font-size:22px}.card{background:#fff;border-radius:12px;padding:16px;margin:12px 0;box-shadow:0 1px 3px #0002}input,select,button{font-size:18px;padding:12px;width:100%;box-sizing:border-box;margin:6px 0;border-radius:8px;border:1px solid #ccc}button{background:#1d4ed8;color:#fff;border:0}button.out{background:#b91c1c}table{width:100%;font-size:14px;border-collapse:collapse}td{padding:4px 0;border-bottom:1px solid #eee}.err{color:#b91c1c}.rooms button.room{background:#e5edff;color:#1d4ed8;text-align:left}.thumbs img{width:31%;margin:1%;border-radius:6px}video{width:100%;border-radius:8px;background:#000}.prog{font-size:14px;color:#374151}</style></head><body>
+<h1>TSShourtracker</h1><div id="app" class="card"><input id="code" inputmode="numeric" type="password" placeholder="Employee code"><button onclick="login()">Log in</button><div id="msg" class="err"></div></div><div id="up" class="prog"></div>
 <script>
 const API='https://script.google.com/macros/s/AKfycbzhTrysR8UYQyUpWiI-5BbZdNZpAdWzTsMpIB-6aB7m_4324AiYSoy4FlCKtVc1hqo9GA/exec';// Apps Script /exec URL
 let code='',S=null;const $=id=>document.getElementById(id);
 async function call(body){if(!API)throw Error('Backend not connected yet');const r=await fetch(API,{method:'POST',body:JSON.stringify(body)});const j=await r.json();if(j.error)throw Error(j.error);return j;}
-async function login(){code=$('code').value.trim();try{S=await call({action:'status',code});render();}catch(e){$('msg').textContent=e.message;}}
-async function punch(){const b=$('pb');b.disabled=true;try{S=await call({action:'punch',code,job:$('job')?$('job').value:''});render();}catch(e){alert(e.message);b.disabled=false;}}
+async function login(){code=$('code').value.trim();try{S=await call({action:'status',code});render();uploadAll();}catch(e){$('msg').textContent=e.message;}}
+async function punch(){const b=$('pb');b.disabled=true;try{const wasOpen=S.open;stopCam();const n=wasOpen?(await allPhotos()).filter(p=>p.code===code&&p.inIso===wasOpen.inIso).length:0;S=await call({action:'punch',code,job:$('job')?$('job').value:'',photos:n});render();if(wasOpen)uploadAll();}catch(e){alert(e.message);b.disabled=false;}}
 function render(){const w=S.weeks.map(w=>`<div class="card"><b>Week of ${w.week}</b><br>${w.hours} h (reg ${w.regular}, OT ${w.overtime}) — <b>$${w.pay.toFixed(2)}</b><table>${w.shifts.map(s=>`<tr><td>${s.job}<br><small>${s.in} → ${s.out}</small></td><td align=right>${s.hours} h</td></tr>`).join('')}</table></div>`).join('');
-$('app').innerHTML=`<b>${S.name}</b> · $${S.rate}/hr<br>`+(S.open?`<p>Clocked in on <b>${S.open.job}</b> since ${S.open.in}</p><button id=pb class=out onclick=punch()>Clock out</button>`:`<p>Not clocked in</p><select id=job>${S.jobs.map(j=>`<option>${j}</option>`).join('')}</select><button id=pb onclick=punch()>Clock in</button>`)+`<button style="background:#6b7280" onclick="location.reload()">Log out</button>`;document.body.insertAdjacentHTML('beforeend','');$('hist')?.remove();$('app').insertAdjacentHTML('afterend',`<div id=hist>${w}</div>`);}
+$('app').innerHTML=`<b>${S.name}</b> · $${S.rate}/hr<br>`+(S.open?`<p>Clocked in on <b>${S.open.job}</b> since ${S.open.in}</p><button id=pb class=out onclick=punch()>Clock out</button>`:`<p>Not clocked in</p><select id=job>${S.jobs.map(j=>`<option>${j}</option>`).join('')}</select><button id=pb onclick=punch()>Clock in</button>`)+`<button style="background:#6b7280" onclick="location.reload()">Log out</button>`;document.body.insertAdjacentHTML('beforeend','');$('hist')?.remove();$('app').insertAdjacentHTML('afterend',`<div id=hist>${w}</div>`);renderRooms();}
+
+// ---- Photo storage (IndexedDB, never the gallery) ----
+const DB=new Promise((ok,no)=>{const r=indexedDB.open('tsshours',1);r.onupgradeneeded=()=>{r.result.createObjectStore('photos',{keyPath:'id',autoIncrement:true});r.result.createObjectStore('rooms',{keyPath:'k'});};r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error);});
+async function tx(st,mode,fn){const d=await DB;return new Promise((ok,no)=>{const t=d.transaction(st,mode),s=t.objectStore(st);const q=fn(s);t.oncomplete=()=>ok(q&&q.result);t.onerror=()=>no(t.error);});}
+const allPhotos=()=>tx('photos','readonly',s=>s.getAll());
+const sessKey=()=>code+'|'+(S&&S.open?S.open.inIso:'');
+async function rooms(){const r=await tx('rooms','readonly',s=>s.get(sessKey()));return r?r.list:[];}
+async function addRoom(){const n=$('roomNo').value.trim();if(!n)return;const l=await rooms();if(!l.includes(n))l.push(n);await tx('rooms','readwrite',s=>s.put({k:sessKey(),list:l}));openRoom(n);}
+let cur=null,stream=null;
+async function renderRooms(){if(!S.open){$('rooms')?.remove();return;}const ph=(await allPhotos()).filter(p=>p.inIso===S.open.inIso);const l=await rooms();
+ const h=`<b>Rooms</b><input id=roomNo inputmode=numeric placeholder="Room number"><button onclick=addRoom()>Add room</button>`+l.map(r=>`<button class=room onclick="openRoom('${r.replace(/'/g,'')}')">Room ${r} · ${ph.filter(p=>p.room===r).length} photos</button>`).join('');
+ if(!$('rooms'))$('app').insertAdjacentHTML('afterend','<div id=rooms class="card rooms"></div>');$('rooms').innerHTML=h;}
+async function openRoom(r){cur=r;const ph=(await allPhotos()).filter(p=>p.inIso===S.open.inIso&&p.room===r);
+ $('rooms').innerHTML=`<b>Room ${r}</b><video id=cam autoplay playsinline muted style="display:none"></video><button onclick=snap()>Take photo</button><input id=fb type=file accept="image/*" capture=environment style="display:none" onchange="fileShot(this)"><div class=thumbs>${ph.map(p=>`<img src="${URL.createObjectURL(p.blob)}">`).join('')}</div><button style="background:#6b7280" onclick="stopCam();renderRooms()">Back to rooms</button>`;startCam();}
+async function startCam(){try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1920}}});$('cam').srcObject=stream;$('cam').style.display='block';}catch(e){stream=null;}}
+function stopCam(){if(stream)stream.getTracks().forEach(t=>t.stop());stream=null;}
+async function toJpeg(src,w,h){const k=Math.min(1,1600/Math.max(w,h)),c=document.createElement('canvas');c.width=Math.round(w*k);c.height=Math.round(h*k);c.getContext('2d').drawImage(src,0,0,c.width,c.height);return new Promise(ok=>c.toBlob(ok,'image/jpeg',0.82));}
+async function save(blob){await tx('photos','readwrite',s=>s.add({code,inIso:S.open.inIso,room:cur,takenAt:new Date().toISOString(),blob}));openRoom(cur);}
+async function snap(){const v=$('cam');if(!stream||!v.videoWidth)return $('fb').click();stopCam();await save(await toJpeg(v,v.videoWidth,v.videoHeight));}
+async function fileShot(i){const f=i.files[0];if(!f)return;const b=await createImageBitmap(f);stopCam();await save(await toJpeg(b,b.width,b.height));}
+const b64=b=>new Promise(ok=>{const r=new FileReader();r.onload=()=>ok(r.result.split(',')[1]);r.readAsDataURL(b);});
+let uploading=false;
+async function uploadAll(){if(uploading)return;uploading=true;let tries=0;
+ while(true){const pend=p=>p.code===code&&!(S.open&&p.inIso===S.open.inIso);const ph=(await allPhotos()).filter(pend);if(!ph.length){$('up').textContent=tries?'All photos uploaded ✓':'';break;}
+  let done=0;for(const p of ph){$('up').textContent=`Uploading photos… ${done}/${ph.length} (keep this page open)`;
+   try{await call({action:'photo',code,inIso:p.inIso,room:p.room,takenAt:p.takenAt,seq:p.id,data:await b64(p.blob)});await tx('photos','readwrite',s=>s.delete(p.id));done++;}catch(e){}}
+  tries++;if((await allPhotos()).filter(pend).length){$('up').textContent=`Some photos failed; retrying in ${Math.min(60,5*tries)}s…`;await new Promise(r=>setTimeout(r,Math.min(60,5*tries)*1000));}}
+ uploading=false;}
 </script></body></html>
