@@ -51,6 +51,10 @@ details summary{cursor:pointer;list-style:none;font-weight:700}details summary::
 .spin{display:inline-block;width:18px;height:18px;border:3px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:r .7s linear infinite;vertical-align:-3px}
 .spin.dk{border-color:#cbd5e1;border-top-color:var(--brand)}@keyframes r{to{transform:rotate(360deg)}}
 .up{position:sticky;top:64px;z-index:4}
+.msg{border-radius:16px;padding:12px 14px;margin:10px 0;font-size:15px;animation:in .3s ease both}.msg.u{background:#eff6ff;margin-left:28px}.msg.a{background:#f8fafc;border:1px solid var(--line)}
+.msg.a ul,.msg.a ol{padding-left:20px;margin:6px 0}.msg.a p{margin:6px 0}.msg.a h4{margin:10px 0 4px}.msg.a code{background:#e2e8f0;border-radius:6px;padding:1px 5px}
+textarea{width:100%;min-height:96px;border:2px solid var(--line);border-radius:14px;padding:12px;font:16px var(--f);resize:vertical;outline:0}textarea:focus{border-color:var(--brand)}
+.tabs{display:grid;grid-template-columns:1fr 1fr;gap:6px;background:#e2e8f0;border-radius:14px;padding:4px;margin-bottom:14px}.tabs button{height:42px;border:0;border-radius:11px;background:transparent;font:700 15px var(--f);color:var(--mute)}.tabs button.on{background:#fff;color:var(--ink);box-shadow:var(--sh)}
 </style></head><body>
 <header><div class="logo">TSS</div><div><b>Hour Tracker</b><small>TechSource Solutions</small></div><div class="sp"></div><button class="link" id="lo" style="display:none" onclick="location.reload()">Log out</button></header>
 <main id="m"></main><div id="toast"></div>
@@ -75,7 +79,8 @@ async function key(k){if(k==='c')code='';else if(k==='b')code=code.slice(0,-1);e
 // ---------- Main ----------
 function fmtT(ms){const s=Math.max(0,Math.floor(ms/1000));return[Math.floor(s/3600),Math.floor(s/60)%60,s%60].map(n=>String(n).padStart(2,'0')).join(':');}
 function render(){clearInterval(tick);const first=S.name.split(' ')[0];const w=S.weeks.find(x=>x.week===weekNow());
- let h=`<div class="up" id="up"></div><div class="card"><div class="row"><div><div class="mute">Hi ${esc(first)} 👋</div><h2>${S.open?'You’re on the clock':'Ready to start?'}</h2></div><span class="chip">$${S.rate}/hr</span></div>`;
+ if(tab==='support')return supportView();
+ let h=tabsHtml()+`<div class="up" id="up"></div><div class="card"><div class="row"><div><div class="mute">Hi ${esc(first)} 👋</div><h2>${S.open?'You’re on the clock':'Ready to start?'}</h2></div><span class="chip">$${S.rate}/hr</span></div>`;
  if(S.open){h+=`<div class="status" style="margin-top:14px"><span class="pulse"></span>${esc(S.open.job)} · since ${esc(S.open.in.replace(/^\w+ \w+ \d+, /,''))}</div><div class="timer" id="tm">00:00:00</div><div class="mute" style="margin-bottom:16px">Current shift</div>
   <button class="big out" id="pb" onclick="punch()">Clock out</button></div><div class="card" id="rooms"><div class="spin dk"></div></div>`;}
  else{if(!job)job=S.jobs[0];h+=`<div class="mute" style="margin-top:14px">Choose your job</div><div class="jobs">${S.jobs.map(j=>`<button class="job ${j===job?'sel':''}" onclick="job='${esc(j)}';render()"><span class="ic">🏫</span>${esc(j)}<span class="ck"></span></button>`).join('')}</div>
@@ -119,6 +124,29 @@ async function uploadAll(){if(uploading)return;uploading=true;let tries=0;const 
    try{await call({action:'photo',code,inIso:p.inIso,room:p.room,takenAt:p.takenAt,seq:p.id,data:await b64(p.blob)});await tx('photos','readwrite',s=>s.delete(p.id));done++;}catch(e){}}
   tries++;const left=(await allPhotos()).filter(pend).length;if(left){const w=Math.min(60,5*tries);upMsg(`${left} photo${left>1?'s':''} failed · retrying in ${w}s`,done/ph.length*100);await new Promise(r=>setTimeout(r,w*1000));}}
  uploading=false;}
+// ---------- Tech Support ----------
+let tab='clock',chat=[],askImgs=[],asking=false;
+function tabsHtml(){return `<div class="tabs"><button class="${tab==='clock'?'on':''}" onclick="tab='clock';render()">⏱ Time Clock</button><button class="${tab==='support'?'on':''}" onclick="tab='support';render()">🛠 Tech Support</button></div>`;}
+function md(t){const e=esc(t).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/`([^`]+)`/g,'<code>$1</code>');let o='',list=null;
+ for(const ln of e.split('\n')){const b=ln.match(/^\s*[-*•]\s+(.*)/),n=ln.match(/^\s*\d+[.)]\s+(.*)/),hd=ln.match(/^#{1,4}\s+(.*)/);const want=b?'ul':n?'ol':null;
+  if(list&&want!==list){o+=`</${list}>`;list=null;}if(want&&!list){o+=`<${want}>`;list=want;}
+  if(b||n)o+=`<li>${(b||n)[1]}</li>`;else if(hd)o+=`<h4>${hd[1]}</h4>`;else if(ln.trim())o+=`<p>${ln}</p>`;}
+ return o+(list?`</${list}>`:'');}
+function supportView(){clearInterval(tick);
+ m.innerHTML=tabsHtml()+`<div class="up" id="up"></div><div class="card"><h2 style="font-size:18px">Tech Support</h2><div class="mute" style="font-size:13px">Ask about installing displays, projectors, panels, mounts, cabling, HDMI/HDBaseT, audio or control. Add a photo to identify a part.</div>
+ <div id="chat">${chat.map(c=>`<div class="msg ${c.role==='user'?'u':'a'}">${c.role==='user'?esc(c.text)+(c.n?`<div class="mute" style="font-size:12px">📷 ${c.n} photo${c.n>1?'s':''}</div>`:''):md(c.text)}</div>`).join('')}${asking?'<div class="msg a"><span class="spin dk"></span> Thinking…</div>':''}</div>
+ <textarea id="q" placeholder="${chat.length?'Ask a follow-up…':'e.g. How do I run HDBaseT from the wall plate to the projector?'}"></textarea>
+ <div class="row" style="margin-top:10px"><label class="btn" style="display:inline-flex;align-items:center;gap:6px;line-height:50px">📷 Take Photo<input type="file" accept="image/*" capture="environment" hidden onchange="askShot(this)"></label>
+ <span class="chip" id="ach" style="${askImgs.length?'':'display:none'}">${askImgs.length} photo${askImgs.length>1?'s':''} attached <a href="#" onclick="askImgs=[];supportView();return false">✕</a></span>
+ <button class="btn" onclick="sendAsk()" ${asking?'disabled':''}>Ask</button></div>${chat.length?'<div style="margin-top:10px"><button class="link" style="padding:0" onclick="chat=[];supportView()">New conversation</button></div>':''}</div>`;
+ const c=$('chat');if(c&&c.lastElementChild)c.lastElementChild.scrollIntoView({block:'nearest'});}
+async function askShot(i){const f=i.files[0];i.value='';if(!f)return;try{const b=await createImageBitmap(f,{imageOrientation:'from-image'});const k=Math.min(1,1024/Math.max(b.width,b.height)),c=document.createElement('canvas');c.width=Math.round(b.width*k);c.height=Math.round(b.height*k);c.getContext('2d').drawImage(b,0,0,c.width,c.height);
+ askImgs.push(c.toDataURL('image/jpeg',0.8).split(',')[1]);const q=$('q').value;supportView();$('q').value=q;toast(askImgs.length+' photo'+(askImgs.length>1?'s':'')+' attached');}catch(e){toast('Could not attach photo',1);}}
+async function sendAsk(){const q=$('q').value.trim();if(!q&&!askImgs.length)return toast('Type a question',1);if(asking)return;
+ const history=chat.map(c=>({role:c.role,text:c.text})),imgs=askImgs;chat.push({role:'user',text:q||'(photo) What is this?',n:imgs.length});askImgs=[];asking=true;supportView();
+ try{const r=await call({action:'ask',code,question:q,images:imgs,history});if(!r.answer)throw Error('Tech Support isn’t switched on yet. Ask Austin.');chat.push({role:'model',text:r.answer});chat=chat.slice(-12);}
+ catch(e){chat.pop();askImgs=imgs;toast(e.message,1);setTimeout(()=>{if($('q'))$('q').value=q;},0);}asking=false;supportView();}
+
 loginView();
 if(MOCK){code='7340';call({}).then(async s=>{S=s;$('lo').style.display='';await tx('rooms','readwrite',x=>x.put({k:sessKey(),list:['101','102','204']}));
  const c=document.createElement('canvas');c.width=400;c.height=400;const g=c.getContext('2d');for(const [r,col] of [['101','#93c5fd'],['204','#fcd34d']]){const gr=g.createLinearGradient(0,0,400,400);gr.addColorStop(0,col);gr.addColorStop(1,'#e2e8f0');g.fillStyle=gr;g.fillRect(0,0,400,400);

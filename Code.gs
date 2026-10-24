@@ -60,10 +60,30 @@ function uploadPhoto(p,e){const r=sessionRow(p.code,p.inIso);if(!r)return {error
 function shiftPayReport(code,inT,h){const e=EMP[code],w=summary(code).weeks.find(x=>x.week===weekKey(inT));const prior=w?Math.max(0,w.hours-h):0;
  const reg=Math.max(0,Math.min(h,40-prior)),ot=h-reg,r=e.rate;
  return '\n\n--- Pay earned this shift ---\nRegular: '+reg.toFixed(2)+' h x $'+r+' = $'+(reg*r).toFixed(2)+(ot>0?'\nOvertime: '+ot.toFixed(2)+' h x $'+(r*1.5)+' = $'+(ot*r*1.5).toFixed(2):'')+'\nShift pay: $'+(reg*r+ot*r*1.5).toFixed(2);}
+// ===== Tech Support (Gemini). API key lives in Script Properties: GEMINI_API_KEY =====
+const GEMINI_MODEL='gemini-2.5-flash';
+const SUPPORT_PROMPT='You are the TSS (TechSource Solutions) Tech Support assistant for field technicians installing AV solutions in K-12 schools and commercial buildings: displays, projectors, interactive flat panels, wall/ceiling/cart mounts, cabling, HDMI, HDBaseT, USB extension, audio (amps, speakers, mics, DSP), and control systems. '+
+ 'Give practical, step-by-step answers a tech can follow on site. Be concise: short steps or bullets, bold key values. When a photo is attached, identify the part/connector/model as best you can and say how confident you are. '+
+ 'Be safety-minded: ladder and lift safety, mount weight ratings and proper anchors into studs/concrete, never work on line voltage or electrical circuits (that is for a licensed electrician), fire/plenum code for cable. '+
+ 'Tell the tech to stop and escalate to Austin (the owner) when: the job is out of scope or would change the quote, there is a safety or structural risk, the customer requests changes, equipment looks damaged or wrong, or you are unsure. Never make up specs; say when to check the manufacturer manual.';
+function supportSheet(){const ss=SpreadsheetApp.getActive();let t=ss.getSheetByName('Support');if(!t){t=ss.insertSheet('Support');t.appendRow(['time_et','code','employee','question','photos','answer_short']);}return t;}
+function ask(p,e){const key=PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY');
+ if(!key)return {error:'Tech Support is not set up yet (missing GEMINI_API_KEY in Script Properties). Ask Austin.'};
+ const q=String(p.question||'').slice(0,4000).trim(),imgs=(p.images||[]).slice(0,6);if(!q&&!imgs.length)return {error:'Type a question'};
+ const contents=(p.history||[]).slice(-10).map(h=>({role:h.role==='model'?'model':'user',parts:[{text:String(h.text||'').slice(0,4000)}]}));
+ const parts=imgs.map(d=>({inlineData:{mimeType:'image/jpeg',data:d}}));parts.push({text:q||'What is this? Identify it and tell me how it is installed/connected.'});contents.push({role:'user',parts});
+ const r=UrlFetchApp.fetch('https://generativelanguage.googleapis.com/v1beta/models/'+GEMINI_MODEL+':generateContent',{method:'post',contentType:'application/json',headers:{'x-goog-api-key':key},muteHttpExceptions:true,
+  payload:JSON.stringify({systemInstruction:{parts:[{text:SUPPORT_PROMPT}]},contents,generationConfig:{temperature:0.3,maxOutputTokens:2048}})});
+ const j=JSON.parse(r.getContentText()||'{}');if(r.getResponseCode()!==200)return {error:'AI service error ('+r.getResponseCode()+'): '+((j.error&&j.error.message)||'try again')};
+ const c=j.candidates&&j.candidates[0],ans=c&&c.content&&c.content.parts?c.content.parts.map(x=>x.text||'').join(''):'';
+ if(!ans)return {error:'No answer came back. Try rephrasing.'};
+ try{supportSheet().appendRow([Utilities.formatDate(new Date(),TZ,'yyyy-MM-dd HH:mm:ss'),p.code,e.name,q,imgs.length,ans.slice(0,300)]);}catch(x){}
+ return {answer:ans};}
 function out(o){return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);}
 function doPost(ev){const lock=LockService.getScriptLock();lock.waitLock(10000);try{
  const p=JSON.parse(ev.postData.contents),e=EMP[p.code];if(!e)return out({error:'Invalid code'});
  if(p.action==='master')return out(p.name?renameMaster(p.job,p.name):(()=>{const f=masterFolder(p.job);return {master:f.getName(),url:f.getUrl()};})());
+ if(p.action==='ask')return out(ask(p,e));
  if(p.action==='photo')return out(uploadPhoto(p,e));
  if(p.action==='punch'){const open=rows(p.code).find(r=>!r.outT),now=new Date();
   if(!open){if(JOBS.indexOf(p.job)<0)return out({error:'Pick a job'});
