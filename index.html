@@ -2,7 +2,7 @@
 <style>body{font-family:system-ui,sans-serif;background:#f6f7f9;color:#111;margin:0;padding:16px;max-width:520px;margin:auto}h1{font-size:22px}.card{background:#fff;border-radius:12px;padding:16px;margin:12px 0;box-shadow:0 1px 3px #0002}input,select,button{font-size:18px;padding:12px;width:100%;box-sizing:border-box;margin:6px 0;border-radius:8px;border:1px solid #ccc}button{background:#1d4ed8;color:#fff;border:0}button.out{background:#b91c1c}table{width:100%;font-size:14px;border-collapse:collapse}td{padding:4px 0;border-bottom:1px solid #eee}.err{color:#b91c1c}</style></head><body>
 <h1>TSShourtracker</h1><div id="app" class="card"><input id="code" inputmode="numeric" type="password" placeholder="Employee code"><button onclick="login()">Log in</button><div id="msg" class="err"></div></div>
 <script>
-const API='';// Apps Script /exec URL
+const API='https://script.google.com/macros/s/AKfycbzhTrysR8UYQyUpWiI-5BbZdNZpAdWzTsMpIB-6aB7m_4324AiYSoy4FlCKtVc1hqo9GA/exec';// Apps Script /exec URL
 let code='',S=null;const $=id=>document.getElementById(id);
 async function call(body){if(!API)throw Error('Backend not connected yet');const r=await fetch(API,{method:'POST',body:JSON.stringify(body)});const j=await r.json();if(j.error)throw Error(j.error);return j;}
 async function login(){code=$('code').value.trim();try{S=await call({action:'status',code});render();}catch(e){$('msg').textContent=e.message;}}
