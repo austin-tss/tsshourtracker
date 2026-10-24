@@ -1,0 +1,12 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>TSShourtracker</title>
+<style>body{font-family:system-ui,sans-serif;background:#f6f7f9;color:#111;margin:0;padding:16px;max-width:520px;margin:auto}h1{font-size:22px}.card{background:#fff;border-radius:12px;padding:16px;margin:12px 0;box-shadow:0 1px 3px #0002}input,select,button{font-size:18px;padding:12px;width:100%;box-sizing:border-box;margin:6px 0;border-radius:8px;border:1px solid #ccc}button{background:#1d4ed8;color:#fff;border:0}button.out{background:#b91c1c}table{width:100%;font-size:14px;border-collapse:collapse}td{padding:4px 0;border-bottom:1px solid #eee}.err{color:#b91c1c}</style></head><body>
+<h1>TSShourtracker</h1><div id="app" class="card"><input id="code" inputmode="numeric" type="password" placeholder="Employee code"><button onclick="login()">Log in</button><div id="msg" class="err"></div></div>
+<script>
+const API='';// Apps Script /exec URL
+let code='',S=null;const $=id=>document.getElementById(id);
+async function call(body){if(!API)throw Error('Backend not connected yet');const r=await fetch(API,{method:'POST',body:JSON.stringify(body)});const j=await r.json();if(j.error)throw Error(j.error);return j;}
+async function login(){code=$('code').value.trim();try{S=await call({action:'status',code});render();}catch(e){$('msg').textContent=e.message;}}
+async function punch(){const b=$('pb');b.disabled=true;try{S=await call({action:'punch',code,job:$('job')?$('job').value:''});render();}catch(e){alert(e.message);b.disabled=false;}}
+function render(){const w=S.weeks.map(w=>`<div class="card"><b>Week of ${w.week}</b><br>${w.hours} h (reg ${w.regular}, OT ${w.overtime}) — <b>$${w.pay.toFixed(2)}</b><table>${w.shifts.map(s=>`<tr><td>${s.job}<br><small>${s.in} → ${s.out}</small></td><td align=right>${s.hours} h</td></tr>`).join('')}</table></div>`).join('');
+$('app').innerHTML=`<b>${S.name}</b> · $${S.rate}/hr<br>`+(S.open?`<p>Clocked in on <b>${S.open.job}</b> since ${S.open.in}</p><button id=pb class=out onclick=punch()>Clock out</button>`:`<p>Not clocked in</p><select id=job>${S.jobs.map(j=>`<option>${j}</option>`).join('')}</select><button id=pb onclick=punch()>Clock in</button>`)+`<button style="background:#6b7280" onclick="location.reload()">Log out</button>`;document.body.insertAdjacentHTML('beforeend','');$('hist')?.remove();$('app').insertAdjacentHTML('afterend',`<div id=hist>${w}</div>`);}
+</script></body></html>
