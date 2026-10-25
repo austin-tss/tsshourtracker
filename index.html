@@ -54,8 +54,9 @@ details summary{cursor:pointer;list-style:none;font-weight:700}details summary::
 .msg{border-radius:16px;padding:12px 14px;margin:10px 0;font-size:15px;animation:in .3s ease both}.msg.u{background:#eff6ff;margin-left:28px}.msg.a{background:#f8fafc;border:1px solid var(--line)}
 .msg.a ul,.msg.a ol{padding-left:20px;margin:6px 0}.msg.a p{margin:6px 0}.msg.a h4{margin:10px 0 4px}.msg.a code{background:#e2e8f0;border-radius:6px;padding:1px 5px}
 textarea{width:100%;min-height:96px;border:2px solid var(--line);border-radius:14px;padding:12px;font:16px var(--f);resize:vertical;outline:0}textarea:focus{border-color:var(--brand)}
-.tabs{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;background:#e2e8f0;border-radius:14px;padding:4px;margin-bottom:14px}.tabs button{height:42px;border:0;border-radius:11px;background:transparent;font:700 15px var(--f);color:var(--mute)}.tabs button.on{background:#fff;color:var(--ink);box-shadow:var(--sh)}
-.mic{width:50px;height:50px;border:0;border-radius:14px;background:#f1f5f9;font-size:20px}.mic.on{background:#ef4444;animation:mp 1.2s infinite}@keyframes mp{0%{box-shadow:0 0 0 0 rgba(239,68,68,.55)}70%{box-shadow:0 0 0 12px rgba(239,68,68,0)}100%{box-shadow:0 0 0 0 rgba(239,68,68,0)}}</style></head><body>
+.tabs{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;background:#e2e8f0;border-radius:14px;padding:4px;margin-bottom:14px}.tabs button{height:42px;border:0;border-radius:11px;background:transparent;white-space:nowrap;padding:0 4px;font:700 14px var(--f);color:var(--mute)}.tabs button.on{background:#fff;color:var(--ink);box-shadow:var(--sh)}
+.mic{width:50px;height:50px;border:0;border-radius:14px;background:#f1f5f9;font-size:20px}.mic.on{background:#ef4444;animation:mp 1.2s infinite}@keyframes mp{0%{box-shadow:0 0 0 0 rgba(239,68,68,.55)}70%{box-shadow:0 0 0 12px rgba(239,68,68,0)}100%{box-shadow:0 0 0 0 rgba(239,68,68,0)}}.tools{display:grid;grid-template-columns:1fr 1fr 50px 1fr;gap:8px;margin-top:10px}.tools .btn{display:flex;align-items:center;justify-content:center;gap:4px;padding:0 6px;white-space:nowrap;font-size:15px;cursor:pointer}.tools .mic{width:auto}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.chips:empty{display:none}.err-box{display:flex;align-items:center;gap:8px;margin-top:10px;padding:10px 12px;border-radius:14px;background:#fef2f2;color:#991b1b;font-size:14px;font-weight:600}</style></head><body>
 <header><div class="logo">TSS</div><div><b>Hour Tracker</b><small>TechSource Solutions</small></div><div class="sp"></div><button class="link" id="lo" style="display:none" onclick="location.reload()">Log out</button></header>
 <main id="m"></main><div id="toast"></div>
 <script>
@@ -64,7 +65,9 @@ const MOCK=new URLSearchParams(location.search).has('mock');
 let code='',S=null,job=null,tick=null,mname='';const $=id=>document.getElementById(id);const m=$('m');
 const esc=s=>String(s).replace(/[&<>"']/g,c=>'&#'+c.charCodeAt(0)+';');
 function toast(t,err){const e=$('toast');e.textContent=t;e.className='on'+(err?' err':'');clearTimeout(e._t);e._t=setTimeout(()=>e.className='',2600);}
-async function call(body){if(MOCK)return mock(body);const r=await fetch(API,{method:'POST',body:JSON.stringify(body)});const j=await r.json();if(j.error)throw Error(j.error);return j;}
+async function call(body,ms){if(MOCK)return mock(body);const ac=new AbortController(),t=setTimeout(()=>ac.abort(),ms||45000);let r;
+ try{r=await fetch(API,{method:'POST',body:JSON.stringify(body),signal:ac.signal});}catch(e){throw Error(e.name==='AbortError'?'Timed out — weak signal or server busy. Try again.':'No connection. Check signal and try again.');}finally{clearTimeout(t);}
+ let j;try{j=await r.json();}catch(e){throw Error('Server error ('+r.status+'). Try again.');}if(j.error)throw Error(j.error);return j;}
 function mock(b){const t=new Date(Date.now()-(2*3600+17*60)*1000).toISOString();if(b.action==='master')return{master:'WT Moore'};if(b.action==='photo')return{ok:true};if(b.action==='receipt')return{ok:true,url:'#'};
  return{name:'William Griffin',rate:30,jobs:['WT Moore'],open:{job:'WT Moore',in:'Sat Oct 24, 7:02 AM ET',inIso:t},weeks:[{week:weekNow(),hours:31.5,regular:31.5,overtime:0,pay:945,shifts:[{job:'WT Moore',in:'Fri Oct 23, 7:00 AM ET',out:'Fri Oct 23, 3:30 PM ET',hours:8.5}]}]};}
 function weekNow(){const p=Object.fromEntries(new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit',weekday:'short'}).formatToParts(new Date()).map(x=>[x.type,x.value]));
@@ -113,21 +116,22 @@ async function openRoom(r){cur=r;const n=(await allPhotos()).filter(p=>p.inIso==
  $('rooms').innerHTML=`<div class="row"><button class="link" style="padding:0" onclick="renderRooms()">‹ Rooms</button></div><h2 style="margin:6px 0 4px">Room ${esc(r)}</h2>
  <div class="mute" id="pc" style="margin-bottom:14px">${n?n+' photo'+(n>1?'s':'')+' saved · uploads at clock-out':'No photos yet'}</div>
  <label class="btn" style="display:inline-flex;align-items:center;gap:8px;line-height:50px">📷 Take Photo<input type="file" accept="image/*" capture="environment" hidden onchange="fileShot(this)"></label>`;}
-async function toJpeg(src,w,h){const k=Math.min(1,1600/Math.max(w,h)),c=document.createElement('canvas');c.width=Math.round(w*k);c.height=Math.round(h*k);c.getContext('2d').drawImage(src,0,0,c.width,c.height);return new Promise(ok=>c.toBlob(ok,'image/jpeg',0.82));}
+async function toJpeg(src,w,h){const k=Math.min(1,1280/Math.max(w,h)),c=document.createElement('canvas');c.width=Math.round(w*k);c.height=Math.round(h*k);c.getContext('2d').drawImage(src,0,0,c.width,c.height);return new Promise(ok=>c.toBlob(ok,'image/jpeg',0.75));}
 async function save(blob){await tx('photos','readwrite',s=>s.add({code,inIso:S.open.inIso,room:cur,takenAt:new Date().toISOString(),blob}));const n=(await allPhotos()).filter(p=>p.inIso===S.open.inIso&&p.room===cur).length;toast('Photo '+n+' saved for Room '+cur);openRoom(cur);}
 async function fileShot(i){const f=i.files[0];if(!f)return;try{const b=await createImageBitmap(f,{imageOrientation:'from-image'});await save(await toJpeg(b,b.width,b.height));}catch(e){toast('Could not save photo: '+e.message,1);}i.value='';}
 const b64=b=>new Promise(ok=>{const r=new FileReader();r.onload=()=>ok(r.result.split(',')[1]);r.readAsDataURL(b);});
 let uploading=false;
-function upMsg(t,pct){const e=$('up');if(e)e.innerHTML=t?`<div class="card" style="padding:14px"><div class="row" style="font-size:14px;font-weight:600"><span>${t}</span>${pct<100?'<span class="spin dk"></span>':'✅'}</div><div class="bar" style="margin-top:8px"><i style="width:${pct}%"></i></div></div>`:'';}
+function upMsg(t,pct,err){const e=$('up');if(e)e.innerHTML=t?`<div class="card" style="padding:14px"><div class="row" style="font-size:14px;font-weight:600"><span>${t}</span>${err?'⚠️':pct<100?'<span class="spin dk"></span>':'✅'}</div><div class="bar" style="margin-top:8px"><i style="width:${pct}%"></i></div></div>`:'';}
+let wake=null;function retryNow(){if(wake)wake();else uploadAll();}
 async function uploadAll(){if(uploading)return;uploading=true;let tries=0;const pend=p=>p.code===code&&!(S.open&&p.inIso===S.open.inIso);
  while(true){const ph=(await allPhotos()).filter(pend);if(!ph.length){if(tries){upMsg('All photos uploaded to Drive',100);toast('Photos uploaded ✓');setTimeout(()=>upMsg(''),4000);}break;}
-  let done=0;for(const p of ph){upMsg(`Uploading photos ${done}/${ph.length} · keep this open`,done/ph.length*100);
-   try{await call({action:'photo',code,inIso:p.inIso,room:p.room,takenAt:p.takenAt,seq:p.id,data:await b64(p.blob)});await tx('photos','readwrite',s=>s.delete(p.id));done++;}catch(e){}}
-  tries++;const left=(await allPhotos()).filter(pend).length;if(left){const w=Math.min(60,5*tries);upMsg(`${left} photo${left>1?'s':''} failed · retrying in ${w}s`,done/ph.length*100);await new Promise(r=>setTimeout(r,w*1000));}}
+  let done=0,why='';for(const p of ph){upMsg(`Uploading photos ${done}/${ph.length} · keep this open`,done/ph.length*100);
+   try{await call({action:'photo',code,inIso:p.inIso,room:p.room,takenAt:p.takenAt,seq:p.id,job:S&&S.jobs?S.jobs[0]:undefined,data:await b64(p.blob)},90000);await tx('photos','readwrite',s=>s.delete(p.id));done++;}catch(e){why=e.message;}}
+  tries++;const left=(await allPhotos()).filter(pend).length;if(left){const w=Math.min(60,5*tries);upMsg(`${left} photo${left>1?'s':''} didn’t upload: ${esc(why)} · auto-retry in ${w}s <button class="link" style="padding:0 0 0 6px" onclick="retryNow()">Retry now</button>`,done/ph.length*100,1);await new Promise(r=>{wake=r;setTimeout(r,w*1000);});wake=null;}}
  uploading=false;}
 // ---------- Tech Support ----------
-let tab='clock',chat=[],askImgs=[],askVid=null,asking=false;
-function tabsHtml(){return `<div class="tabs"><button class="${tab==='clock'?'on':''}" onclick="tab='clock';render()">⏱ Time Clock</button><button class="${tab==='support'?'on':''}" onclick="tab='support';render()">🛠 Support</button><button class="${tab==='receipts'?'on':''}" onclick="tab='receipts';render()">🧾 Receipts</button></div>`;}
+let tab='clock',chat=[],askImgs=[],askVid=null,asking=false,askErr='';
+function tabsHtml(){return `<div class="tabs"><button class="${tab==='clock'?'on':''}" onclick="tab='clock';render()">⏱ Clock</button><button class="${tab==='support'?'on':''}" onclick="tab='support';render()">🛠 Support</button><button class="${tab==='receipts'?'on':''}" onclick="tab='receipts';render()">🧾 Receipts</button></div>`;}
 function md(t){const e=esc(t).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/`([^`]+)`/g,'<code>$1</code>');let o='',list=null;
  for(const ln of e.split('\n')){const b=ln.match(/^\s*[-*•]\s+(.*)/),n=ln.match(/^\s*\d+[.)]\s+(.*)/),hd=ln.match(/^#{1,4}\s+(.*)/);const want=b?'ul':n?'ol':null;
   if(list&&want!==list){o+=`</${list}>`;list=null;}if(want&&!list){o+=`<${want}>`;list=want;}
@@ -137,13 +141,12 @@ function supportView(){clearInterval(tick);
  m.innerHTML=tabsHtml()+`<div class="up" id="up"></div><div class="card"><h2 style="font-size:18px">Tech Support</h2><div class="mute" style="font-size:13px">Ask about installing displays, projectors, panels, mounts, cabling, HDMI/HDBaseT, audio or control. Add a photo to identify a part.</div>
  <div id="chat">${chat.map(c=>`<div class="msg ${c.role==='user'?'u':'a'}">${c.role==='user'?esc(c.text)+(c.n?`<div class="mute" style="font-size:12px">📷 ${c.n} photo${c.n>1?'s':''}</div>`:''):md(c.text)}</div>`).join('')}${asking?'<div class="msg a"><span class="spin dk"></span> Thinking…</div>':''}</div>
  <textarea id="q" placeholder="${chat.length?'Ask a follow-up…':'e.g. How do I run HDBaseT from the wall plate to the projector?'}"></textarea>
- <div class="row" style="margin-top:10px"><label class="btn" style="display:inline-flex;align-items:center;gap:6px;line-height:50px">📷 Take Photo<input type="file" accept="image/*" capture="environment" hidden onchange="askShot(this)"></label><label class="btn" style="display:inline-flex;align-items:center;gap:6px;line-height:50px">🎥 Record Video<input type="file" accept="video/*" capture="environment" hidden onchange="askVidShot(this)"></label><button class="mic ${rec?'on':''}" id="mic" aria-label="Voice input" onclick="toggleMic()">🎤</button>
- <span class="chip" id="ach" style="${askImgs.length?'':'display:none'}">${askImgs.length} photo${askImgs.length>1?'s':''} attached <a href="#" onclick="askImgs=[];supportView();return false">✕</a></span>
- <span class="chip" style="${askVid?'':'display:none'}">🎥 Video attached${askVid&&askVid.dur?' ('+askVid.dur+'s)':''} <a href="#" onclick="askVid=null;supportView();return false">✕</a></span>
- <button class="btn" onclick="sendAsk()" ${asking?'disabled':''}>Ask</button></div>${chat.length?'<div style="margin-top:10px"><button class="link" style="padding:0" onclick="chat=[];supportView()">New conversation</button></div>':''}</div>`;
+ ${askErr?`<div class="err-box">⚠️ ${esc(askErr)} <button class="btn" style="height:36px;padding:0 14px;margin-left:auto" onclick="sendAsk()">Retry</button></div>`:''}
+ <div class="chips">${askImgs.length?`<span class="chip">📷 ${askImgs.length} photo${askImgs.length>1?'s':''} <a href="#" onclick="askImgs=[];supportView();return false">✕</a></span>`:''}${askVid?`<span class="chip">🎥 Video${askVid.dur?' '+askVid.dur+'s':''} <a href="#" onclick="askVid=null;supportView();return false">✕</a></span>`:''}</div>
+ <div class="tools"><label class="btn sec">📷 Photo<input type="file" accept="image/*" capture="environment" hidden onchange="askShot(this)"></label><label class="btn sec">🎥 Video<input type="file" accept="video/*" capture="environment" hidden onchange="askVidShot(this)"></label><button class="mic ${rec?'on':''}" id="mic" aria-label="Voice input" onclick="toggleMic()">🎤</button><button class="btn" onclick="sendAsk()" ${asking?'disabled':''}>Ask</button></div>${chat.length?'<div style="margin-top:10px"><button class="link" style="padding:0" onclick="chat=[];supportView()">New conversation</button></div>':''}</div>`;
  const c=$('chat');if(c&&c.lastElementChild)c.lastElementChild.scrollIntoView({block:'nearest'});}
 async function askShot(i){const f=i.files[0];i.value='';if(!f)return;try{const b=await createImageBitmap(f,{imageOrientation:'from-image'});const k=Math.min(1,1024/Math.max(b.width,b.height)),c=document.createElement('canvas');c.width=Math.round(b.width*k);c.height=Math.round(b.height*k);c.getContext('2d').drawImage(b,0,0,c.width,c.height);
- askImgs.push(c.toDataURL('image/jpeg',0.8).split(',')[1]);const q=$('q').value;supportView();$('q').value=q;toast(askImgs.length+' photo'+(askImgs.length>1?'s':'')+' attached');}catch(e){toast('Could not attach photo',1);}}
+ askImgs.push(c.toDataURL('image/jpeg',0.7).split(',')[1]);const q=$('q').value;supportView();$('q').value=q;toast(askImgs.length+' photo'+(askImgs.length>1?'s':'')+' attached');}catch(e){toast('Could not attach photo',1);}}
 function vidDur(f){return new Promise(res=>{const v=document.createElement('video'),u=URL.createObjectURL(f);v.preload='metadata';v.muted=true;const done=d=>{URL.revokeObjectURL(u);res(d);};v.onloadedmetadata=()=>done(isFinite(v.duration)?v.duration:0);v.onerror=()=>done(0);setTimeout(()=>done(0),5000);v.src=u;});}
 async function askVidShot(i){const f=i.files[0];i.value='';if(!f)return;try{const d=await vidDur(f);
  if(d>62||f.size>15e6)return toast('That video is too long ('+(d?Math.round(d)+'s':Math.round(f.size/1e6)+'MB')+'). Please record a shorter clip, under 60 seconds.',1);
@@ -152,8 +155,8 @@ async function askVidShot(i){const f=i.files[0];i.value='';if(!f)return;try{cons
  askVid={data:b64,mime:(f.type||'video/mp4').split(';')[0],dur:Math.round(d)};const q=$('q').value;supportView();$('q').value=q;toast('Video attached');}catch(e){toast('Could not attach video',1);}}
 async function sendAsk(){if(rec)rec.stop();const q=$('q').value.trim();if(!q&&!askImgs.length&&!askVid)return toast('Type a question',1);if(asking)return;
  const history=chat.map(c=>({role:c.role,text:c.text})),imgs=askImgs,vid=askVid;chat.push({role:'user',text:(q||(vid?'(video)':'(photo) What is this?'))+(vid&&q?' 🎥':''),n:imgs.length});askImgs=[];askVid=null;asking=true;supportView();
- try{const r=await call({action:'ask',code,question:q,images:imgs,history,video:vid?{data:vid.data,mimeType:vid.mime}:undefined});if(!r.answer)throw Error('Tech Support isn’t switched on yet. Ask Austin.');chat.push({role:'model',text:r.answer});chat=chat.slice(-12);}
- catch(e){chat.pop();askImgs=imgs;askVid=vid;toast(e.message,1);setTimeout(()=>{if($('q'))$('q').value=q;},0);}asking=false;supportView();}
+ askErr='';try{const r=await call({action:'ask',code,question:q,images:imgs,history,video:vid?{data:vid.data,mimeType:vid.mime}:undefined},vid?120000:60000);if(!r.answer)throw Error('Tech Support isn’t switched on yet. Ask Austin.');chat.push({role:'model',text:r.answer});chat=chat.slice(-12);}
+ catch(e){chat.pop();askImgs=imgs;askVid=vid;askErr=e.message;}asking=false;supportView();if(askErr&&$('q'))$('q').value=q;}
 
 let rec=null;
 function toggleMic(){if(rec){rec.stop();return;}const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
