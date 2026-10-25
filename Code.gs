@@ -8,7 +8,7 @@ const EMP={
  '6789':{name:'Taylor',email:'taylor@techsourcedsolutions.com',rate:30,to:'taylor@techsourcedsolutions.com',cc:'austin@techsourcedsolutions.com',weekReport:true,shiftPay:true},
  '0123':{name:'Mike Roberts',email:'Mike.Roberts@audioenhancement.com',rate:30,to:'Mike.Roberts@audioenhancement.com',cc:'austin@techsourcedsolutions.com',weekReport:true,shiftPay:true},
  '4826':{name:'Neelam',email:'ndeyoung50@outlook.com',rate:30,to:'ndeyoung50@outlook.com',cc:'austin@techsourcedsolutions.com',weekReport:true,shiftPay:true},
- '5917':{name:'Parker Bonn',email:'austin@techsourcedsolutions.com',rate:20,to:'austin@techsourcedsolutions.com',cc:'',weekReport:true,shiftPay:true}};
+ '5917':{name:'Parker Bonn',email:'parkerjbonn@gmail.com',rate:20,to:'parkerjbonn@gmail.com',cc:'austin@techsourcedsolutions.com',weekReport:true,shiftPay:true}};
 const JOBS=['WT Moore'];
 function sh(){const ss=SpreadsheetApp.getActive();let s=ss.getSheetByName('Punches');
  if(!s){s=ss.insertSheet('Punches');s.appendRow(['code','name','job','in_iso','out_iso','hours','photos','photo_folder']);}return s;}
