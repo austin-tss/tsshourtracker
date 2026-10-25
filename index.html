@@ -174,7 +174,7 @@ function toggleMic(){if(rec){rec.stop();return;}const SR=window.SpeechRecognitio
 let rcpts=[],rcBusy=false;
 function receiptView(){clearInterval(tick);const today=new Date().toDateString(),list=rcpts.filter(r=>r.day===today);
  m.innerHTML=tabsHtml()+`<div class="card" style="margin-top:12px"><h2 style="font-size:18px">Receipts</h2><div class="sub">Snap a receipt — it uploads to Expenses in Drive.</div>
- <input id="rnote" class="field" maxlength="60" placeholder="Note (optional) · e.g. Home Depot wire">
+ <input id="rnote" class="field" maxlength="60" placeholder="Note (optional), e.g. Home Depot">
  <label class="big" style="display:grid;place-items:center;background:linear-gradient(135deg,var(--brand),var(--brand2));color:#2563eb"><span>${rcBusy?'<span class="spin"></span> Uploading…':'📷 Take Photo'}</span><input type="file" accept="image/*" capture="environment" hidden ${rcBusy?'disabled':''} onchange="receiptShot(this)"></label>
  ${list.length?`<div style="margin-top:14px;font-weight:700;font-size:14px">Today</div>`+list.map(r=>`<div class="shift"><span>🧾 ${esc(r.note||'Receipt')}</span><a href="${esc(r.url)}" target="_blank" class="mute">${esc(r.time)}</a></div>`).join(''):'<div class="empty-st"><div class="ei">🧾</div><b>No receipts yet today</b>Uploaded receipts will show here.</div>'}</div>`;}
 async function receiptShot(i){const f=i.files[0];i.value='';if(!f||rcBusy)return;const note=($('rnote').value||'').trim();rcBusy=true;receiptView();$('rnote').value=note;
