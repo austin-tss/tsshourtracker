@@ -9,8 +9,8 @@ header{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:10px;
 .logo{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,var(--brand),var(--brand2));color:#fff;display:grid;place-items:center;font-weight:800;font-size:13px;letter-spacing:.5px}
 header b{font-size:17px}header small{display:block;color:var(--mute);font-size:12px;margin-top:-2px}
 header .sp{flex:1}.link{background:none;border:0;color:var(--brand);font:600 14px var(--f);padding:8px}
-main{max-width:480px;margin:0 auto;padding:16px 16px 40px}
-.card{background:var(--card);border-radius:var(--r);box-shadow:var(--sh);padding:20px;margin-bottom:14px;animation:in .35s ease both}
+main{max-width:480px;margin:0 auto;padding:0 16px calc(32px + env(safe-area-inset-bottom))}
+.card{background:var(--card);border-radius:var(--r);box-shadow:var(--sh);padding:20px;margin-bottom:12px;animation:in .35s ease both}
 @keyframes in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 h2{margin:0 0 4px;font-size:20px;letter-spacing:-.01em}.mute{color:var(--mute);font-size:14px}
 .dots{display:flex;justify-content:center;gap:14px;margin:22px 0}
@@ -36,9 +36,9 @@ h2{margin:0 0 4px;font-size:20px;letter-spacing:-.01em}.mute{color:var(--mute);f
 .bar.ot i{background:linear-gradient(90deg,#f59e0b,#ea580c)}
 .row{display:flex;justify-content:space-between;align-items:center;gap:8px}
 .tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
-.tile{position:relative;aspect-ratio:1;border-radius:16px;overflow:hidden;background:#eef2ff;border:0;padding:0;font:inherit;text-align:left}
+.tile{position:relative;aspect-ratio:4/3;border-radius:16px;overflow:hidden;background:#eef2ff;border:0;padding:0;font:inherit;text-align:left}
 .tile img{width:100%;height:100%;object-fit:cover}.tile .lbl{position:absolute;inset:auto 0 0 0;padding:10px;background:linear-gradient(transparent,rgba(15,23,42,.75));color:#fff}
-.tile .lbl b{display:block}.tile.empty{display:grid;place-items:center;color:var(--brand);font-weight:700}.tile.empty .lbl{background:none;color:var(--mute)}
+.tile .lbl b{display:block}.tile.empty{display:block;color:var(--brand);font-weight:700;font-size:24px;padding:12px;background:#f5f7ff;border:1px solid #e0e7ff}.tile .lbl{font-size:13px;font-weight:500;line-height:1.3}.tile .lbl b{font-size:15px;font-weight:700;color:var(--ink)}.tile.empty .lbl{background:none;color:var(--mute)}
 .add{display:flex;gap:8px;margin-top:12px}.add input{flex:1;min-width:0;height:50px;border:2px solid var(--line);border-radius:14px;padding:0 14px;font:600 17px var(--f);outline:0}.add input:focus{border-color:var(--brand)}
 .btn{height:50px;border:0;border-radius:14px;padding:0 18px;background:var(--brand);color:#fff;font:700 15px var(--f)}.btn.sec{background:#f1f5f9;color:var(--ink)}
 .chip{display:inline-flex;align-items:center;gap:6px;background:#f1f5f9;border-radius:99px;padding:6px 12px;font-size:13px;font-weight:600}
@@ -50,13 +50,16 @@ details summary{cursor:pointer;list-style:none;font-weight:700}details summary::
 #toast.on{transform:translate(-50%,0);opacity:1}#toast.err{background:var(--bad)}
 .spin{display:inline-block;width:18px;height:18px;border:3px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:r .7s linear infinite;vertical-align:-3px}
 .spin.dk{border-color:#cbd5e1;border-top-color:var(--brand)}@keyframes r{to{transform:rotate(360deg)}}
-.up{position:sticky;top:64px;z-index:4}
+.up:empty{display:none}.up{margin:12px 0 0}.upb{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:14px;background:#fff;box-shadow:var(--sh);font-size:13px;font-weight:600;position:relative;overflow:hidden}.upb.err{background:#fff7ed;color:#9a3412;box-shadow:none;border:1px solid #fed7aa}.upb .tx{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.upb .link{padding:0;font-size:13px;white-space:nowrap}.upb .pg{position:absolute;left:0;bottom:0;height:3px;background:var(--brand);transition:width .4s}.upb.err .pg{background:#fb923c}
+.empty-st{text-align:center;padding:20px 12px 8px;color:var(--mute);font-size:14px}.empty-st .ei{width:48px;height:48px;margin:0 auto 8px;border-radius:14px;background:#eef2ff;display:grid;place-items:center;font-size:22px}.empty-st b{display:block;color:var(--ink);font-size:15px}
+.field{width:100%;height:50px;border:2px solid var(--line);border-radius:14px;padding:0 14px;font:500 16px var(--f);outline:0;margin-bottom:12px;background:#fff}.field:focus{border-color:var(--brand)}
+.sub{font-size:13px;color:var(--mute);margin-bottom:12px}
 .msg{border-radius:16px;padding:12px 14px;margin:10px 0;font-size:15px;animation:in .3s ease both}.msg.u{background:#eff6ff;margin-left:28px}.msg.a{background:#f8fafc;border:1px solid var(--line)}
 .msg.a ul,.msg.a ol{padding-left:20px;margin:6px 0}.msg.a p{margin:6px 0}.msg.a h4{margin:10px 0 4px}.msg.a code{background:#e2e8f0;border-radius:6px;padding:1px 5px}
 textarea{width:100%;min-height:96px;border:2px solid var(--line);border-radius:14px;padding:12px;font:16px var(--f);resize:vertical;outline:0}textarea:focus{border-color:var(--brand)}
-.tabs{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;background:#e2e8f0;border-radius:14px;padding:4px;margin-bottom:14px}.tabs button{height:42px;border:0;border-radius:11px;background:transparent;white-space:nowrap;padding:0 4px;font:700 14px var(--f);color:var(--mute)}.tabs button.on{background:#fff;color:var(--ink);box-shadow:var(--sh)}
+.tabbar{position:sticky;top:calc(59px + env(safe-area-inset-top));z-index:4;margin:0 -16px;padding:10px 16px;background:rgba(244,246,251,.92);backdrop-filter:blur(12px)}.tabs{display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;background:#e2e8f0;border-radius:14px;padding:4px}.tabs button{height:42px;border:0;border-radius:11px;background:transparent;white-space:nowrap;padding:0 4px;font:700 14px var(--f);color:var(--mute)}.tabs button span{margin-right:5px}.tabs button.on{background:#fff;color:var(--ink);box-shadow:var(--sh)}
 .mic{width:50px;height:50px;border:0;border-radius:14px;background:#f1f5f9;font-size:20px}.mic.on{background:#ef4444;animation:mp 1.2s infinite}@keyframes mp{0%{box-shadow:0 0 0 0 rgba(239,68,68,.55)}70%{box-shadow:0 0 0 12px rgba(239,68,68,0)}100%{box-shadow:0 0 0 0 rgba(239,68,68,0)}}.tools{display:grid;grid-template-columns:1fr 1fr 50px 1fr;gap:8px;margin-top:10px}.tools .btn{display:flex;align-items:center;justify-content:center;gap:4px;padding:0 6px;white-space:nowrap;font-size:15px;cursor:pointer}.tools .mic{width:auto}
-.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.chips:empty{display:none}.err-box{display:flex;align-items:center;gap:8px;margin-top:10px;padding:10px 12px;border-radius:14px;background:#fef2f2;color:#991b1b;font-size:14px;font-weight:600}</style></head><body>
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.chips:empty{display:none}.chip a{color:var(--mute);text-decoration:none;margin-left:2px}.err-box{display:flex;align-items:center;gap:8px;margin-top:10px;padding:10px 12px;border-radius:14px;background:#fef2f2;color:#991b1b;font-size:14px;font-weight:600}</style></head><body>
 <header><div class="logo">TSS</div><div><b>Hour Tracker</b><small>TechSource Solutions</small></div><div class="sp"></div><button class="link" id="lo" style="display:none" onclick="location.reload()">Log out</button></header>
 <main id="m"></main><div id="toast"></div>
 <script>
@@ -84,7 +87,7 @@ function fmtT(ms){const s=Math.max(0,Math.floor(ms/1000));return[Math.floor(s/36
 function render(){clearInterval(tick);const first=S.name.split(' ')[0];const w=S.weeks.find(x=>x.week===weekNow());
  if(tab==='support')return supportView();
  if(tab==='receipts')return receiptView();
- let h=tabsHtml()+`<div class="up" id="up"></div><div class="card"><div class="row"><div><div class="mute">Hi ${esc(first)} 👋</div><h2>${S.open?'You’re on the clock':'Ready to start?'}</h2></div><span class="chip">$${S.rate}/hr</span></div>`;
+ let h=tabsHtml()+`<div class="up" id="up"></div><div class="card" style="margin-top:12px"><div class="row"><div><div class="mute">Hi ${esc(first)} 👋</div><h2>${S.open?'You’re on the clock':'Ready to start?'}</h2></div><span class="chip">$${S.rate}/hr</span></div>`;
  if(S.open){h+=`<div class="status" style="margin-top:14px"><span class="pulse"></span>${esc(S.open.job)} · since ${esc(S.open.in.replace(/^\w+ \w+ \d+, /,''))}</div><div class="timer" id="tm">00:00:00</div><div class="mute" style="margin-bottom:16px">Current shift</div>
   <button class="big out" id="pb" onclick="punch()">Clock out</button></div><div class="card" id="rooms"><div class="spin dk"></div></div>`;}
  else{if(!job)job=S.jobs[0];h+=`<div class="mute" style="margin-top:14px">Choose your job</div><div class="jobs">${S.jobs.map(j=>`<button class="job ${j===job?'sel':''}" onclick="job='${esc(j)}';render()"><span class="ic">🏫</span>${esc(j)}<span class="ck"></span></button>`).join('')}</div>
@@ -109,37 +112,37 @@ async function renameM(){const n=prompt('Drive folder name for '+S.open.job+' (e
 let cur=null;
 async function renderRooms(){const el=$('rooms');if(!el||!S.open)return;if(!mname){try{mname=(await call({action:'master',code,job:S.open.job})).master;}catch(e){mname=S.open.job;}}
  const ph=(await allPhotos()).filter(p=>p.inIso===S.open.inIso),l=await rooms();
- el.innerHTML=`<div class="row"><h2 style="font-size:17px">Rooms</h2><button class="chip" style="border:0" onclick="renameM()">📁 <span id="mname">${esc(mname)}</span> ✎</button></div><div class="mute" style="font-size:13px">Photos stay in this app and upload to Drive when you clock out.</div>
+ el.innerHTML=`<div class="row"><h2 style="font-size:17px">Rooms</h2><button class="chip" style="border:0" onclick="renameM()">📁 <span id="mname">${esc(mname)}</span> ✎</button></div><div class="sub" style="margin:4px 0 0">Photos stay in this app and upload to Drive when you clock out.</div>
  <div class="add"><input id="roomNo" inputmode="numeric" placeholder="Room number" onkeydown="if(event.key==='Enter')addRoom()"><button class="btn" onclick="addRoom()">Add</button></div>
- <div class="tiles">${l.map(r=>{const n=ph.filter(p=>p.room===r).length;return `<button class="tile empty" onclick="openRoom('${esc(r)}')">${n?'🗂️':'📷'}<span class="lbl" style="position:absolute"><b>Room ${esc(r)}</b>${n?n+' photo'+(n>1?'s':'')+' saved':'No photos yet'}</span></button>`;}).join('')}</div>`;}
+ <div class="tiles">${l.map(r=>{const n=ph.filter(p=>p.room===r).length;return `<button class="tile empty" onclick="openRoom('${esc(r)}')">${n?'🗂️':'📷'}<span class="lbl" style="position:absolute"><b>Room ${esc(r)}</b>${n?n+' photo'+(n>1?'s':'')+' saved':'No photos yet'}</span></button>`;}).join('')}</div>${l.length?'':'<div class="empty-st"><div class="ei">🚪</div><b>No rooms yet</b>Add a room number to start taking photos.</div>'}`;}
 async function openRoom(r){cur=r;const n=(await allPhotos()).filter(p=>p.inIso===S.open.inIso&&p.room===r).length;
  $('rooms').innerHTML=`<div class="row"><button class="link" style="padding:0" onclick="renderRooms()">‹ Rooms</button></div><h2 style="margin:6px 0 4px">Room ${esc(r)}</h2>
  <div class="mute" id="pc" style="margin-bottom:14px">${n?n+' photo'+(n>1?'s':'')+' saved · uploads at clock-out':'No photos yet'}</div>
- <label class="btn" style="display:inline-flex;align-items:center;gap:8px;line-height:50px">📷 Take Photo<input type="file" accept="image/*" capture="environment" hidden onchange="fileShot(this)"></label>`;}
+ <label class="btn" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;cursor:pointer">📷 Take Photo<input type="file" accept="image/*" capture="environment" hidden onchange="fileShot(this)"></label>`;}
 async function toJpeg(src,w,h){const k=Math.min(1,1280/Math.max(w,h)),c=document.createElement('canvas');c.width=Math.round(w*k);c.height=Math.round(h*k);c.getContext('2d').drawImage(src,0,0,c.width,c.height);return new Promise(ok=>c.toBlob(ok,'image/jpeg',0.75));}
 async function save(blob){await tx('photos','readwrite',s=>s.add({code,inIso:S.open.inIso,room:cur,takenAt:new Date().toISOString(),blob}));const n=(await allPhotos()).filter(p=>p.inIso===S.open.inIso&&p.room===cur).length;toast('Photo '+n+' saved for Room '+cur);openRoom(cur);}
 async function fileShot(i){const f=i.files[0];if(!f)return;try{const b=await createImageBitmap(f,{imageOrientation:'from-image'});await save(await toJpeg(b,b.width,b.height));}catch(e){toast('Could not save photo: '+e.message,1);}i.value='';}
 const b64=b=>new Promise(ok=>{const r=new FileReader();r.onload=()=>ok(r.result.split(',')[1]);r.readAsDataURL(b);});
 let uploading=false;
-function upMsg(t,pct,err){const e=$('up');if(e)e.innerHTML=t?`<div class="card" style="padding:14px"><div class="row" style="font-size:14px;font-weight:600"><span>${t}</span>${err?'⚠️':pct<100?'<span class="spin dk"></span>':'✅'}</div><div class="bar" style="margin-top:8px"><i style="width:${pct}%"></i></div></div>`:'';}
+function upMsg(t,pct,err){const e=$('up');if(e)e.innerHTML=t?`<div class="upb${err?' err':''}">${err?'⚠️':pct<100?'<span class="spin dk" style="width:16px;height:16px;border-width:2px"></span>':'✅'}<span class="tx">${t}</span><i class="pg" style="width:${pct}%"></i></div>`:'';}
 let wake=null;function retryNow(){if(wake)wake();else uploadAll();}
 async function uploadAll(){if(uploading)return;uploading=true;let tries=0;const pend=p=>p.code===code&&!(S.open&&p.inIso===S.open.inIso);
  while(true){const ph=(await allPhotos()).filter(pend);if(!ph.length){if(tries){upMsg('All photos uploaded to Drive',100);toast('Photos uploaded ✓');setTimeout(()=>upMsg(''),4000);}break;}
   let done=0,why='';for(const p of ph){upMsg(`Uploading photos ${done}/${ph.length} · keep this open`,done/ph.length*100);
    try{await call({action:'photo',code,inIso:p.inIso,room:p.room,takenAt:p.takenAt,seq:p.id,job:S&&S.jobs?S.jobs[0]:undefined,data:await b64(p.blob)},90000);await tx('photos','readwrite',s=>s.delete(p.id));done++;}catch(e){why=e.message;}}
-  tries++;const left=(await allPhotos()).filter(pend).length;if(left){const w=Math.min(60,5*tries);upMsg(`${left} photo${left>1?'s':''} didn’t upload: ${esc(why)} · auto-retry in ${w}s <button class="link" style="padding:0 0 0 6px" onclick="retryNow()">Retry now</button>`,done/ph.length*100,1);await new Promise(r=>{wake=r;setTimeout(r,w*1000);});wake=null;}}
+  tries++;const left=(await allPhotos()).filter(pend).length;if(left){const w=Math.min(60,5*tries);upMsg(`<span title="${esc(why)}">${left} photo${left>1?'s':''} didn’t upload · retry in ${w}s</span></span><button class="link" onclick="retryNow()">Retry now</button><span hidden>`,done/ph.length*100,1);await new Promise(r=>{wake=r;setTimeout(r,w*1000);});wake=null;}}
  uploading=false;}
 // ---------- Tech Support ----------
 let tab='clock',chat=[],askImgs=[],askVid=null,asking=false,askErr='';
-function tabsHtml(){return `<div class="tabs"><button class="${tab==='clock'?'on':''}" onclick="tab='clock';render()">⏱ Clock</button><button class="${tab==='support'?'on':''}" onclick="tab='support';render()">🛠 Support</button><button class="${tab==='receipts'?'on':''}" onclick="tab='receipts';render()">🧾 Receipts</button></div>`;}
+function tabsHtml(){return `<div class="tabbar"><div class="tabs"><button class="${tab==='clock'?'on':''}" onclick="tab='clock';render()">⏱ Clock</button><button class="${tab==='support'?'on':''}" onclick="tab='support';render()">🛠 Support</button><button class="${tab==='receipts'?'on':''}" onclick="tab='receipts';render()">🧾 Receipts</button></div></div>`;}
 function md(t){const e=esc(t).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/`([^`]+)`/g,'<code>$1</code>');let o='',list=null;
  for(const ln of e.split('\n')){const b=ln.match(/^\s*[-*•]\s+(.*)/),n=ln.match(/^\s*\d+[.)]\s+(.*)/),hd=ln.match(/^#{1,4}\s+(.*)/);const want=b?'ul':n?'ol':null;
   if(list&&want!==list){o+=`</${list}>`;list=null;}if(want&&!list){o+=`<${want}>`;list=want;}
   if(b||n)o+=`<li>${(b||n)[1]}</li>`;else if(hd)o+=`<h4>${hd[1]}</h4>`;else if(ln.trim())o+=`<p>${ln}</p>`;}
  return o+(list?`</${list}>`:'');}
 function supportView(){clearInterval(tick);
- m.innerHTML=tabsHtml()+`<div class="up" id="up"></div><div class="card"><h2 style="font-size:18px">Tech Support</h2><div class="mute" style="font-size:13px">Ask about installing displays, projectors, panels, mounts, cabling, HDMI/HDBaseT, audio or control. Add a photo to identify a part.</div>
- <div id="chat">${chat.map(c=>`<div class="msg ${c.role==='user'?'u':'a'}">${c.role==='user'?esc(c.text)+(c.n?`<div class="mute" style="font-size:12px">📷 ${c.n} photo${c.n>1?'s':''}</div>`:''):md(c.text)}</div>`).join('')}${asking?'<div class="msg a"><span class="spin dk"></span> Thinking…</div>':''}</div>
+ m.innerHTML=tabsHtml()+`<div class="up" id="up"></div><div class="card" style="margin-top:12px"><h2 style="font-size:18px">Tech Support</h2><div class="sub">Ask about installing displays, projectors, panels, mounts, cabling, HDMI/HDBaseT, audio or control. Add a photo to identify a part.</div>
+ <div id="chat">${chat.length||asking?'':'<div class="empty-st" style="padding:4px 12px 16px"><div class="ei">🛠</div><b>How can we help?</b>Type, talk, or snap a photo of the install.</div>'}${chat.map(c=>`<div class="msg ${c.role==='user'?'u':'a'}">${c.role==='user'?esc(c.text)+(c.n?`<div class="mute" style="font-size:12px">📷 ${c.n} photo${c.n>1?'s':''}</div>`:''):md(c.text)}</div>`).join('')}${asking?'<div class="msg a"><span class="spin dk"></span> Thinking…</div>':''}</div>
  <textarea id="q" placeholder="${chat.length?'Ask a follow-up…':'e.g. How do I run HDBaseT from the wall plate to the projector?'}"></textarea>
  ${askErr?`<div class="err-box">⚠️ ${esc(askErr)} <button class="btn" style="height:36px;padding:0 14px;margin-left:auto" onclick="sendAsk()">Retry</button></div>`:''}
  <div class="chips">${askImgs.length?`<span class="chip">📷 ${askImgs.length} photo${askImgs.length>1?'s':''} <a href="#" onclick="askImgs=[];supportView();return false">✕</a></span>`:''}${askVid?`<span class="chip">🎥 Video${askVid.dur?' '+askVid.dur+'s':''} <a href="#" onclick="askVid=null;supportView();return false">✕</a></span>`:''}</div>
@@ -170,10 +173,10 @@ function toggleMic(){if(rec){rec.stop();return;}const SR=window.SpeechRecognitio
 // ---------- Receipts ----------
 let rcpts=[],rcBusy=false;
 function receiptView(){clearInterval(tick);const today=new Date().toDateString(),list=rcpts.filter(r=>r.day===today);
- m.innerHTML=tabsHtml()+`<div class="card"><h2 style="font-size:18px">Receipts</h2><div class="mute" style="font-size:13px;margin-bottom:12px">Snap a receipt. It uploads to the Expenses folder in Drive.</div>
- <input id="rnote" class="job" style="width:100%;margin-bottom:12px" maxlength="60" placeholder="Note (optional), e.g. Home Depot - wire">
+ m.innerHTML=tabsHtml()+`<div class="card" style="margin-top:12px"><h2 style="font-size:18px">Receipts</h2><div class="sub">Snap a receipt — it uploads to Expenses in Drive.</div>
+ <input id="rnote" class="field" maxlength="60" placeholder="Note (optional) · e.g. Home Depot wire">
  <label class="big" style="display:grid;place-items:center;background:linear-gradient(135deg,var(--brand),var(--brand2));color:#2563eb"><span>${rcBusy?'<span class="spin"></span> Uploading…':'📷 Take Photo'}</span><input type="file" accept="image/*" capture="environment" hidden ${rcBusy?'disabled':''} onchange="receiptShot(this)"></label>
- ${list.length?`<div style="margin-top:14px;font-weight:700;font-size:14px">Today</div>`+list.map(r=>`<div class="shift"><span>🧾 ${esc(r.note||'Receipt')}</span><a href="${esc(r.url)}" target="_blank" class="mute">${esc(r.time)}</a></div>`).join(''):''}</div>`;}
+ ${list.length?`<div style="margin-top:14px;font-weight:700;font-size:14px">Today</div>`+list.map(r=>`<div class="shift"><span>🧾 ${esc(r.note||'Receipt')}</span><a href="${esc(r.url)}" target="_blank" class="mute">${esc(r.time)}</a></div>`).join(''):'<div class="empty-st"><div class="ei">🧾</div><b>No receipts yet today</b>Uploaded receipts will show here.</div>'}</div>`;}
 async function receiptShot(i){const f=i.files[0];i.value='';if(!f||rcBusy)return;const note=($('rnote').value||'').trim();rcBusy=true;receiptView();$('rnote').value=note;
  try{const b=await createImageBitmap(f,{imageOrientation:'from-image'});const r=await call({action:'receipt',code,note,data:await b64(await toJpeg(b,b.width,b.height))});
   rcpts.unshift({day:new Date().toDateString(),time:new Date().toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}),note,url:r.url||'#'});toast('Receipt uploaded');rcBusy=false;receiptView();}
