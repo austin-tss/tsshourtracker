@@ -5,7 +5,7 @@ const TZ='America/New_York';
 const EMP={
  '7340':{name:'William Griffin',email:'william@techsourcedsolutions.com',rate:30,to:'william@techsourcedsolutions.com',cc:'taylor@techsourcedsolutions.com,austin@techsourcedsolutions.com',weekReport:true,shiftPay:false},
  '1234':{name:'Paul Sorenson',email:'paulsor3@gmail.com',rate:30,to:'paulsor3@gmail.com',cc:'austin@techsourcedsolutions.com',weekReport:true,shiftPay:true},
- '6789':{name:'Taylor',email:'taylor@techsourcedsolutions.com',rate:30,to:'taylor@techsourcedsolutions.com',cc:'austin@techsourcedsolutions.com',weekReport:true,shiftPay:true},
+ '6789':{name:'Taylor',email:'taylor@techsourcedsolutions.com',rate:30,manager:true,to:'taylor@techsourcedsolutions.com',cc:'austin@techsourcedsolutions.com',weekReport:true,shiftPay:true},
  '0123':{name:'Mike Roberts',email:'Mike.Roberts@audioenhancement.com',rate:30,to:'Mike.Roberts@audioenhancement.com',cc:'austin@techsourcedsolutions.com',weekReport:true,shiftPay:true},
  '4826':{name:'Neelam',email:'ndeyoung50@outlook.com',rate:30,to:'ndeyoung50@outlook.com',cc:'austin@techsourcedsolutions.com',weekReport:true,shiftPay:true},
  '5917':{name:'Parker Bonn',email:'parkerjbonn@gmail.com',rate:20,to:'parkerjbonn@gmail.com',cc:'austin@techsourcedsolutions.com',weekReport:true,shiftPay:true}};
@@ -19,7 +19,7 @@ function summary(code){const e=EMP[code],rs=rows(code),weeks={};
  rs.filter(r=>r.outT).forEach(r=>{const k=weekKey(r.inT);(weeks[k]=weeks[k]||{week:k,hours:0,shifts:[]});weeks[k].hours+=Number(r.hours);weeks[k].shifts.push({job:r.job,in:fmt(r.inT),out:fmt(r.outT),hours:+Number(r.hours).toFixed(2)});});
  const list=Object.values(weeks).sort((a,b)=>a.week<b.week?1:-1).map(w=>{const reg=Math.min(40,w.hours),ot=Math.max(0,w.hours-40);
   return {...w,hours:+w.hours.toFixed(2),regular:+reg.toFixed(2),overtime:+ot.toFixed(2),pay:+(reg*e.rate+ot*e.rate*1.5).toFixed(2)};});
- const open=rs.find(r=>!r.outT);return {name:e.name,rate:e.rate,jobs:JOBS,open:open?{job:open.job,in:fmt(open.inT),inIso:String(open.inT)}:null,weeks:list};}
+ const open=rs.find(r=>!r.outT);return {name:e.name,rate:e.rate,jobs:JOBS,open:open?{job:open.job,in:fmt(open.inT),inIso:String(open.inT)}:null,weeks:list,manager:!!e.manager};}
 
 // ===== Take-home ESTIMATE settings (easy to change) =====
 const TAX={
@@ -96,6 +96,20 @@ function ask(p,e){const key=PropertiesService.getScriptProperties().getProperty(
 function receipt(p,e){const ss=SpreadsheetApp.getActive(),n=cleanName(p.note).slice(0,60),t=new Date();
  const f=sub(sub(sheetParent(),'Expenses'),e.name).createFile(Utilities.newBlob(Utilities.base64Decode(p.data),'image/jpeg',e.name+' '+Utilities.formatDate(t,TZ,'yyyy-MM-dd HH-mm-ss')+' ET'+(n?' - '+n:'')+'.jpg'));
  const x=ss.getSheetByName('Expenses')||ss.insertSheet('Expenses').appendRow(['timestamp','code','name','note','file url']);x.appendRow([Utilities.formatDate(t,TZ,'yyyy-MM-dd HH:mm:ss'),p.code,e.name,n,f.getUrl()]);return {ok:true,url:f.getUrl()};}
+// ===== Manager portal (read-only; only EMP entries with manager:true) =====
+function managerData(e){if(!e.manager)return {error:'Not authorized'};
+ const ss=SpreadsheetApp.getActive(),now=new Date(),cut=new Date(now.getTime()-14*864e5),thisW=weekKey(now),prevW=weekKey(new Date(now.getTime()-7*864e5));
+ const tab=n=>{const t=ss.getSheetByName(n);return t?t.getDataRange().getValues().slice(1):[];},ts=v=>v instanceof Date?Utilities.formatDate(v,TZ,'yyyy-MM-dd HH:mm:ss'):String(v);
+ const P=tab('Punches').map(r=>({code:String(r[0]),name:r[1],job:r[2],inT:r[3],outT:r[4],hours:Number(r[5]||0),photos:Number(r[6]||0),folder:r[7]||''})).filter(r=>r.inT);
+ const onNow=P.filter(r=>!r.outT).map(r=>({name:r.name,code:r.code,job:r.job,since:fmt(r.inT),inIso:String(r.inT),hours:+((now-new Date(r.inT))/36e5).toFixed(2)}));
+ const weeks={};P.filter(r=>r.outT).forEach(r=>{const k=weekKey(r.inT);if(k!==thisW&&k!==prevW)return;const id=r.code+'|'+k;(weeks[id]=weeks[id]||{code:r.code,week:k,hours:0}).hours+=r.hours;});
+ const totals=Object.keys(EMP).map(c=>{const x=EMP[c],f=k=>{const h=(weeks[c+'|'+k]||{hours:0}).hours,reg=Math.min(40,h),ot=Math.max(0,h-40);return {hours:+h.toFixed(2),overtime:+ot.toFixed(2),pay:+(reg*x.rate+ot*x.rate*1.5).toFixed(2)};};return {code:c,name:x.name,rate:x.rate,thisWeek:f(thisW),lastWeek:f(prevW)};});
+ const shifts=P.filter(r=>new Date(r.inT)>=cut).map(r=>({name:r.name,code:r.code,job:r.job,in:fmt(r.inT),inIso:String(r.inT),out:r.outT?fmt(r.outT):'',hours:+r.hours.toFixed(2),pay:+(r.hours*((EMP[r.code]||{}).rate||0)).toFixed(2),photos:r.photos,folder:r.folder})).reverse();
+ const photos=[];try{JOBS.forEach(j=>{const mf=masterFolder(j),fs=mf.getFolders();while(fs.hasNext()&&photos.length<400){const rf=fs.next(),it=rf.getFiles();while(it.hasNext()){const f=it.next(),d=f.getDateCreated();if(d>=cut)photos.push({job:j,room:rf.getName(),name:f.getName(),url:f.getUrl(),time:Utilities.formatDate(d,TZ,'yyyy-MM-dd HH:mm'),checklist:!/^Room /.test(f.getName())});}}});}catch(x){}
+ photos.sort((a,b)=>a.time<b.time?1:-1);
+ const receipts=tab('Expenses').map(r=>({time:ts(r[0]),code:String(r[1]),name:r[2],note:r[3],url:r[4]})).reverse().slice(0,200);
+ const support=tab('Support').map(r=>({time:ts(r[0]),code:String(r[1]),name:r[2],question:r[3],photos:r[4],answer:r[5],offTopic:!!r[6]})).reverse().slice(0,200);
+ return {ok:true,generated:fmt(now),thisWeek:thisW,lastWeek:prevW,onNow,totals,shifts,photos,receipts,support};}
 function out(o){return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);}
 function doPost(ev){let lock=null;try{
  const p=JSON.parse(ev.postData.contents),e=EMP[p.code];if(!e)return out({error:'Invalid code'});
@@ -103,6 +117,7 @@ function doPost(ev){let lock=null;try{
  if(p.action==='ask')return out(ask(p,e));
  if(p.action==='photo')return out(uploadPhoto(p,e));
  if(p.action==='receipt')return out(receipt(p,e));
+ if(p.action==='manager')return out(managerData(e));
  if(p.action==='punch'){lock=LockService.getScriptLock();lock.waitLock(20000);const open=rows(p.code).find(r=>!r.outT),now=new Date();
   if(!open){if(JOBS.indexOf(p.job)<0)return out({error:'Pick a job'});
    sh().appendRow([p.code,e.name,p.job,now.toISOString(),'','']);

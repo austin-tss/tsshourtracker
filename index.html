@@ -66,7 +66,7 @@ textarea{width:100%;min-height:96px;border:2px solid var(--line);border-radius:1
 <main id="m"></main><div id="toast"></div>
 <script>
 // ===== App version: bump on every release; open pages auto-reload when a newer one is live =====
-const APP_V='26';
+const APP_V='27';
 async function vCheck(){try{if(uploading||(typeof ck!=='undefined'&&ck.busy)||(typeof rcBusy!=='undefined'&&rcBusy))return;const t=await (await fetch(location.pathname+'?cb='+Date.now(),{cache:'no-store'})).text(),v=(t.match(/APP_V='(\d+)'/)||[])[1];
  if(v&&v!==APP_V)location.replace(location.pathname+'?v='+v);}catch(e){}}
 addEventListener('load',vCheck);document.addEventListener('visibilitychange',()=>{if(!document.hidden)vCheck()});addEventListener('pageshow',e=>{if(e.persisted)vCheck()});
@@ -119,8 +119,9 @@ function render(){clearInterval(tick);const first=S.name.split(' ')[0];const w=S
  if(tab==='support')return supportView();
  if(tab==='receipts')return receiptView();
  if(tab==='links')return linksView();
+ if(tab==='manager')return mgrView();
  if(tab==='checklist')return checklistView();
- let h=tabsHtml()+`<div class="up" id="up"></div><div class="card" style="margin-top:12px"><div class="row"><div><div class="mute">Hi ${esc(first)} 👋</div><h2>${S.open?'You’re on the clock':'Ready to start?'}</h2></div><span class="chip">$${S.rate}/hr</span></div>`;
+ let h=tabsHtml()+`<div class="up" id="up"></div>${S.manager?`<button class="big" style="margin-top:12px;height:58px;font-size:17px;background:#fff;border:1px solid #c7d2fe;box-shadow:var(--sh)" onclick="tab='manager';render();scrollTo(0,0)"><span style="color:#3730a3">👔 Manager portal ›</span></button>`:''}<div class="card" style="margin-top:12px"><div class="row"><div><div class="mute">Hi ${esc(first)} 👋</div><h2>${S.open?'You’re on the clock':'Ready to start?'}</h2></div><span class="chip">$${S.rate}/hr</span></div>`;
  if(S.open){h+=`<div class="status" style="margin-top:14px"><span class="pulse"></span>${esc(S.open.job)} · since ${esc(S.open.in.replace(/^\w+ \w+ \d+, /,''))}</div><div class="timer" id="tm">00:00:00</div><div class="mute" style="margin-bottom:16px">Current shift</div>
   <button class="big out" id="pb" onclick="punch()">Clock out</button></div><div class="card" id="rooms"><div class="spin dk"></div></div>`;}
  else{if(!job)job=S.jobs[0];h+=`<div class="mute" style="margin-top:14px">Choose your job</div><div class="jobs">${S.jobs.map(j=>`<button class="job ${j===job?'sel':''}" onclick="job='${esc(j)}';render()"><span class="ic">🏫</span>${esc(j)}<span class="ck"></span></button>`).join('')}</div>
@@ -179,7 +180,7 @@ async function uploadAll(){if(uploading)return;uploading=true;let tries=0;const 
  uploading=false;phRe();}
 // ---------- Tech Support ----------
 let tab='clock',chat=[],askImgs=[],askVid=null,asking=false,askErr='';
-function tabsHtml(){return `<div class="tabbar"><div class="tabs"><button class="${tab==='clock'?'on':''}" onclick="tab='clock';render()">⏱ Clock</button><button class="${tab==='support'?'on':''}" onclick="tab='support';render()">🛠 Support</button><button class="${tab==='receipts'?'on':''}" onclick="tab='receipts';render()">🧾 Receipts</button><button class="${tab==='links'||tab==='checklist'?'on':''}" onclick="tab='links';render()">🔗 Links</button></div></div>`;}
+function tabsHtml(){return `<div class="tabbar"><div class="tabs"><button class="${tab==='clock'||tab==='manager'?'on':''}" onclick="tab='clock';render()">⏱ Clock</button><button class="${tab==='support'?'on':''}" onclick="tab='support';render()">🛠 Support</button><button class="${tab==='receipts'?'on':''}" onclick="tab='receipts';render()">🧾 Receipts</button><button class="${tab==='links'||tab==='checklist'?'on':''}" onclick="tab='links';render()">🔗 Links</button></div></div>`;}
 function md(t){const e=esc(t).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/`([^`]+)`/g,'<code>$1</code>');let o='',list=null;
  for(const ln of e.split('\n')){const b=ln.match(/^\s*[-*•]\s+(.*)/),n=ln.match(/^\s*\d+[.)]\s+(.*)/),hd=ln.match(/^#{1,4}\s+(.*)/);const want=b?'ul':n?'ol':null;
   if(list&&want!==list){o+=`</${list}>`;list=null;}if(want&&!list){o+=`<${want}>`;list=want;}
@@ -240,6 +241,25 @@ async function ckShot(inp,i){const f=inp.files[0];inp.value='';const it=(CHECKLI
   if(r&&r.error)throw new Error(r.error);if(r&&!r.name)alert('Uploaded, but the server is on an older version so the file name may not match. Tell Austin.');
   ck.done[ck.tpl+'|'+room+'|'+it]=1;ckSave();}catch(e){alert('Upload failed: '+e.message+' — try again.');}
  ck.busy='';ckRe();}
+// ---------- Manager portal ----------
+let mg=null,mgErr='',mgBusy=false,mgEmp='';
+const money=n=>'$'+Number(n||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+async function mgLoad(){mgBusy=true;mgErr='';mgView();try{const r=await call({action:'manager',code},60000);if(r&&r.ok)mg=r;else mgErr=r&&r.error==='Not authorized'?'Not authorized':'Manager data not available yet';}catch(e){mgErr=e.message;}mgBusy=false;mgView();}
+function mgView(){clearInterval(tick);const sec=(t,b)=>`<div class="card" style="margin-top:12px"><h2 style="font-size:17px;margin-bottom:6px">${t}</h2>${b}</div>`,row=(a,b)=>`<div class="shift" style="align-items:flex-start;gap:10px"><span style="flex:1;min-width:0">${a}</span><span style="text-align:right;flex:none">${b}</span></div>`,lk=(u,t)=>u?`<a href="${esc(u)}" target="_blank" rel="noopener" style="color:#2563eb">${t}</a>`:'',none=t=>`<div class="mute" style="padding:8px 0">${t}</div>`;
+ let h=tabsHtml()+`<div class="card" style="margin-top:12px"><div class="row"><div><button class="link" style="padding:0" onclick="tab='clock';render()">‹ Clock</button><h2 style="font-size:20px;margin-top:4px">👔 Manager</h2><div class="mute" style="font-size:13px">${mg?'Updated '+esc(mg.generated):'Everything your team logs'}</div></div><button class="chip" style="border:0;font-weight:700" onclick="mgLoad()">${mgBusy?'<span class="spin dk" style="width:14px;height:14px;border-width:2px"></span>':'↻ Refresh'}</button></div></div>`;
+ if(mgErr)h+=sec('⚠️ '+esc(mgErr),'<div class="mute">'+(mgErr==='Manager data not available yet'?'The server hasn’t been updated for the manager portal yet.':'Try Refresh.')+'</div>');
+ else if(!mg)h+=sec('Loading…','<div class="spin dk"></div>');
+ else{const d=mg,f=x=>!mgEmp||x.code===mgEmp,nm=c=>(d.totals.find(t=>t.code===c)||{}).name||c;
+  h+=`<div style="display:flex;gap:6px;overflow-x:auto;margin-top:12px;padding-bottom:2px">${[['','Everyone'],...d.totals.map(t=>[t.code,t.name.split(' ')[0]])].map(([c,n])=>`<button class="chip" style="border:0;flex:none;${mgEmp===c?'background:#1e293b;color:#fff':''}" onclick="mgEmp='${c}';mgView()">${esc(n)}</button>`).join('')}</div>`;
+  const on=d.onNow.filter(f);h+=sec(`🟢 On the clock now <span class="chip">${on.length}</span>`,on.length?on.map(o=>row(`<b>${esc(o.name)}</b><div class="mute" style="font-size:13px">${esc(o.job)} · since ${esc(o.since)}</div>`,`<b>${o.hours.toFixed(1)} h</b>`)).join(''):none('Nobody is clocked in.'));
+  const wk=(w,t)=>`<b>${w.hours.toFixed(1)} h</b>${w.overtime?` <span style="color:#b45309;font-size:12px">+${w.overtime.toFixed(1)} OT</span>`:''}<div class="mute" style="font-size:13px">${money(w.pay)}</div>`;
+  const tt=d.totals.filter(f);h+=sec('📅 This week <span class="mute" style="font-size:13px;font-weight:500">(week of '+esc(d.thisWeek)+')</span>',tt.map(t=>row(`<b>${esc(t.name)}</b><div class="mute" style="font-size:13px">$${t.rate}/hr · last wk ${t.lastWeek.hours.toFixed(1)} h · ${money(t.lastWeek.pay)}</div>`,wk(t.thisWeek))).join('')+row('<b>Total this week</b>',`<b>${money(tt.reduce((a,t)=>a+t.thisWeek.pay,0))}</b>`));
+  const sh=d.shifts.filter(f);h+=sec(`🕒 Shifts <span class="mute" style="font-size:13px;font-weight:500">last 14 days</span>`,sh.length?sh.map(x=>row(`<b>${esc(x.name)}</b> <span class="mute" style="font-size:13px">${esc(x.job)}</span><div class="mute" style="font-size:13px">${esc(x.in)}${x.out?' → '+esc(x.out.replace(/^\w+ \w+ \d+, /,'')):' · <b style="color:#15803d">on the clock</b>'}</div>${x.photos||x.folder?`<div style="font-size:13px">📷 ${x.photos||0} ${lk(x.folder,'folder')}</div>`:''}`,x.out?`<b>${x.hours.toFixed(2)} h</b><div class="mute" style="font-size:13px">${money(x.pay)}</div>`:'')).join(''):none('No shifts.'));
+  const ph=d.photos;h+=sec(`📷 Photos & checklists <span class="mute" style="font-size:13px;font-weight:500">last 14 days</span>`,ph.length?ph.slice(0,80).map(x=>row(`${x.checklist?'☑️':'📷'} ${lk(x.url,esc(x.name))}<div class="mute" style="font-size:13px">${esc(x.job)} · ${esc(x.room)}</div>`,`<span class="mute" style="font-size:12px">${esc(x.time)}</span>`)).join(''):none('No photos.'));
+  const rc=d.receipts.filter(f);h+=sec('🧾 Receipts',rc.length?rc.slice(0,60).map(x=>row(`<b>${esc(x.name)}</b> ${lk(x.url,'view')}<div class="mute" style="font-size:13px">${esc(x.note||'(no note)')}</div>`,`<span class="mute" style="font-size:12px">${esc(x.time)}</span>`)).join(''):none('No receipts.'));
+  const su=d.support.filter(f);h+=sec('🛠 Tech Support log',su.length?su.slice(0,60).map(x=>row(`<b>${esc(x.name)}</b>${x.offTopic?' <span class="chip" style="background:#fee2e2;color:#b91c1c;font-size:11px">OFF-TOPIC</span>':''}<div style="font-size:14px">${esc(x.question)}</div><div class="mute" style="font-size:12px">${esc(String(x.answer||'').slice(0,140))}</div>`,`<span class="mute" style="font-size:12px">${esc(x.time)}</span>`)).join(''):none('No questions.'));}
+ m.innerHTML=h;}
+function mgrView(){if(!S||!S.manager){tab='clock';return render();}if(!mg&&!mgBusy&&!mgErr)mgLoad();else mgView();}
 let rcpts=[],rcBusy=false;
 function receiptView(){clearInterval(tick);const today=new Date().toDateString(),list=rcpts.filter(r=>r.day===today);
  m.innerHTML=tabsHtml()+`<div class="card" style="margin-top:12px"><h2 style="font-size:18px">Receipts</h2><div class="sub">Snap a receipt — it uploads to Expenses in Drive.</div>
