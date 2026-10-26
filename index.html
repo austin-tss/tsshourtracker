@@ -65,12 +65,23 @@ textarea{width:100%;min-height:96px;border:2px solid var(--line);border-radius:1
 <main id="m"></main><div id="toast"></div>
 <script>
 // ===== Links tab: edit this list to add/remove links =====
+// ios/android: native app deep links tried in order first; url = web fallback
 const LINKS=[
- {icon:'📍',label:'Directions to WT Moore',sub:'Open in Maps',url:'https://www.google.com/maps/search/?api=1&query=W.T.+Moore+Elementary+School'},
+ {icon:'📍',label:'Directions to WT Moore',sub:'Open in Maps',ios:['comgooglemaps://?daddr=W.T.+Moore+Elementary+School&directionsmode=driving','maps://?daddr=W.T.+Moore+Elementary+School'],android:['google.navigation:q=W.T.+Moore+Elementary+School'],url:'https://www.google.com/maps/search/?api=1&query=W.T.+Moore+Elementary+School'},
  {icon:'🧾',label:'Receipts',sub:'Snap & upload a receipt',tab:'receipts'}, // tab: opens an in-app tab
- {icon:'🗺️',label:'Google Maps',sub:'maps.google.com',url:'https://maps.google.com'},
- {icon:'📁',label:'TSS Google Drive',sub:'drive.google.com',url:'https://drive.google.com'},
+ {icon:'🗺️',label:'Google Maps',sub:'maps.google.com',ios:['comgooglemaps://'],url:'https://maps.google.com'},
+ {icon:'📁',label:'TSS Google Drive',sub:'drive.google.com',ios:['googledrive://'],android:['intent://#Intent;package=com.google.android.apps.docs;scheme=googledrive;S.browser_fallback_url='+encodeURIComponent('https://drive.google.com')+';end'],url:'https://drive.google.com'},
 ];
+function openLink(i){const l=LINKS[i],ua=navigator.userAgent;
+ const isIOS=/iPhone|iPad|iPod/.test(ua)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1),isAnd=/Android/.test(ua);
+ const chain=[...((isIOS?l.ios:isAnd?l.android:null)||[]),l.url];let t,k=0,gone=false;
+ const stop=()=>{gone=true;clearTimeout(t)};
+ const vis=()=>{if(document.hidden)stop()};
+ document.addEventListener('visibilitychange',vis);addEventListener('pagehide',stop,{once:true});addEventListener('blur',stop,{once:true});
+ const done=()=>{document.removeEventListener('visibilitychange',vis);removeEventListener('pagehide',stop);removeEventListener('blur',stop)};
+ const step=()=>{if(gone)return done();const u=chain[k++];if(k>=chain.length){done();if(chain.length===1)window.open(u,'_blank','noopener');else location.href=u;return}
+  location.href=u;t=setTimeout(step,1200)};
+ step();}
 
 const API='https://script.google.com/macros/s/AKfycbzhTrysR8UYQyUpWiI-5BbZdNZpAdWzTsMpIB-6aB7m_4324AiYSoy4FlCKtVc1hqo9GA/exec';
 const MOCK=new URLSearchParams(location.search).has('mock');
@@ -182,7 +193,7 @@ function toggleMic(){if(rec){rec.stop();return;}const SR=window.SpeechRecognitio
 
 // ---------- Receipts ----------
 function linksView(){clearInterval(tick);
- m.innerHTML=tabsHtml()+`<div class="card" style="margin-top:12px"><h2 style="font-size:18px">Links</h2><div class="sub">Quick links for the job.</div>`+LINKS.map(l=>`<a ${l.tab?`href="#" onclick="tab='${l.tab}';render();scrollTo(0,0);return false"`:`href="${esc(l.url)}" target="_blank" rel="noopener"`} style="display:flex;align-items:center;gap:14px;margin-top:10px;padding:16px;border-radius:16px;background:#fff;border:1px solid #e2e8f0;box-shadow:var(--sh);text-decoration:none;color:var(--ink)"><span style="font-size:28px">${l.icon}</span><span style="flex:1"><b style="display:block;font-size:16px">${esc(l.label)}</b><span class="mute" style="font-size:13px">${esc(l.sub||'')}</span></span><span class="mute" style="font-size:20px">›</span></a>`).join('')+`</div>`;}
+ m.innerHTML=tabsHtml()+`<div class="card" style="margin-top:12px"><h2 style="font-size:18px">Links</h2><div class="sub">Quick links for the job.</div>`+LINKS.map(l=>`<a ${l.tab?`href="#" onclick="tab='${l.tab}';render();scrollTo(0,0);return false"`:`href="${esc(l.url)}" target="_blank" rel="noopener" onclick="openLink(${LINKS.indexOf(l)});return false"`} style="display:flex;align-items:center;gap:14px;margin-top:10px;padding:16px;border-radius:16px;background:#fff;border:1px solid #e2e8f0;box-shadow:var(--sh);text-decoration:none;color:var(--ink)"><span style="font-size:28px">${l.icon}</span><span style="flex:1"><b style="display:block;font-size:16px">${esc(l.label)}</b><span class="mute" style="font-size:13px">${esc(l.sub||'')}</span></span><span class="mute" style="font-size:20px">›</span></a>`).join('')+`</div>`;}
 let rcpts=[],rcBusy=false;
 function receiptView(){clearInterval(tick);const today=new Date().toDateString(),list=rcpts.filter(r=>r.day===today);
  m.innerHTML=tabsHtml()+`<div class="card" style="margin-top:12px"><h2 style="font-size:18px">Receipts</h2><div class="sub">Snap a receipt — it uploads to Expenses in Drive.</div>
