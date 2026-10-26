@@ -161,7 +161,7 @@ async function uploadAll(){if(uploading)return;uploading=true;let tries=0;const 
  uploading=false;}
 // ---------- Tech Support ----------
 let tab='clock',chat=[],askImgs=[],askVid=null,asking=false,askErr='';
-function tabsHtml(){return `<div class="tabbar"><div class="tabs"><button class="${tab==='clock'?'on':''}" onclick="tab='clock';render()">⏱ Clock</button><button class="${tab==='support'?'on':''}" onclick="tab='support';render()">🛠 Support</button><button class="${tab==='receipts'?'on':''}" onclick="tab='receipts';render()">🧾 Receipts</button><button class="${tab==='links'?'on':''}" onclick="tab='links';render()">🔗 Links</button></div></div>`;}
+function tabsHtml(){return `<div class="tabbar"><div class="tabs"><button class="${tab==='clock'?'on':''}" onclick="tab='clock';render()">⏱ Clock</button><button class="${tab==='support'?'on':''}" onclick="tab='support';render()">🛠 Support</button><button class="${tab==='receipts'?'on':''}" onclick="tab='receipts';render()">🧾 Receipts</button><button class="${tab==='links'||tab==='checklist'?'on':''}" onclick="tab='links';render()">🔗 Links</button></div></div>`;}
 function md(t){const e=esc(t).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/`([^`]+)`/g,'<code>$1</code>');let o='',list=null;
  for(const ln of e.split('\n')){const b=ln.match(/^\s*[-*•]\s+(.*)/),n=ln.match(/^\s*\d+[.)]\s+(.*)/),hd=ln.match(/^#{1,4}\s+(.*)/);const want=b?'ul':n?'ol':null;
   if(list&&want!==list){o+=`</${list}>`;list=null;}if(want&&!list){o+=`<${want}>`;list=want;}
