@@ -58,12 +58,19 @@ details summary{cursor:pointer;list-style:none;font-weight:700}details summary::
 .msg{border-radius:16px;padding:12px 14px;margin:10px 0;font-size:15px;animation:in .3s ease both}.msg.u{background:#eff6ff;margin-left:28px}.msg.a{background:#f8fafc;border:1px solid var(--line)}
 .msg.a ul,.msg.a ol{padding-left:20px;margin:6px 0}.msg.a p{margin:6px 0}.msg.a h4{margin:10px 0 4px}.msg.a code{background:#e2e8f0;border-radius:6px;padding:1px 5px}
 textarea{width:100%;min-height:96px;border:2px solid var(--line);border-radius:14px;padding:12px;font:16px var(--f);resize:vertical;outline:0}textarea:focus{border-color:var(--brand)}
-.tabbar{position:sticky;top:calc(59px + env(safe-area-inset-top));z-index:4;margin:0 -16px;padding:10px 16px;background:rgba(244,246,251,.92);backdrop-filter:blur(12px)}.tabs{display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;background:#e2e8f0;border-radius:14px;padding:4px}.tabs button{height:42px;border:0;border-radius:11px;background:transparent;white-space:nowrap;padding:0 4px;font:700 14px var(--f);color:var(--mute)}.tabs button span{margin-right:5px}.tabs button.on{background:#fff;color:var(--ink);box-shadow:var(--sh)}
+.tabbar{position:sticky;top:calc(59px + env(safe-area-inset-top));z-index:4;margin:0 -16px;padding:10px 16px;background:rgba(244,246,251,.92);backdrop-filter:blur(12px)}.tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;background:#e2e8f0;border-radius:14px;padding:4px}.tabs button{height:42px;font-size:13px!important;border:0;border-radius:11px;background:transparent;white-space:nowrap;padding:0 4px;font:700 14px var(--f);color:var(--mute)}.tabs button span{margin-right:5px}.tabs button.on{background:#fff;color:var(--ink);box-shadow:var(--sh)}
 .mic{width:50px;height:50px;border:0;border-radius:14px;background:#f1f5f9;font-size:20px}.mic.on{background:#ef4444;animation:mp 1.2s infinite}@keyframes mp{0%{box-shadow:0 0 0 0 rgba(239,68,68,.55)}70%{box-shadow:0 0 0 12px rgba(239,68,68,0)}100%{box-shadow:0 0 0 0 rgba(239,68,68,0)}}.tools{display:grid;grid-template-columns:1fr 1fr 50px 1fr;gap:8px;margin-top:10px}.tools .btn{display:flex;align-items:center;justify-content:center;gap:4px;padding:0 6px;white-space:nowrap;font-size:15px;cursor:pointer}.tools .mic{width:auto}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.chips:empty{display:none}.chip a{color:var(--mute);text-decoration:none;margin-left:2px}.err-box{display:flex;align-items:center;gap:8px;margin-top:10px;padding:10px 12px;border-radius:14px;background:#fef2f2;color:#991b1b;font-size:14px;font-weight:600}</style></head><body>
 <header><div class="logo">TSS</div><div><b>Hour Tracker</b><small>TechSource Solutions</small></div><div class="sp"></div><button class="link" id="lo" style="display:none" onclick="location.reload()">Log out</button></header>
 <main id="m"></main><div id="toast"></div>
 <script>
+// ===== Links tab: edit this list to add/remove links =====
+const LINKS=[
+ {icon:'📍',label:'Directions to WT Moore',sub:'Open in Maps',url:'https://www.google.com/maps/search/?api=1&query=W.T.+Moore+Elementary+School'},
+ {icon:'🗺️',label:'Google Maps',sub:'maps.google.com',url:'https://maps.google.com'},
+ {icon:'📁',label:'TSS Google Drive',sub:'drive.google.com',url:'https://drive.google.com'},
+];
+
 const API='https://script.google.com/macros/s/AKfycbzhTrysR8UYQyUpWiI-5BbZdNZpAdWzTsMpIB-6aB7m_4324AiYSoy4FlCKtVc1hqo9GA/exec';
 const MOCK=new URLSearchParams(location.search).has('mock');
 let code='',S=null,job=null,tick=null,mname='';const $=id=>document.getElementById(id);const m=$('m');
@@ -88,6 +95,7 @@ function fmtT(ms){const s=Math.max(0,Math.floor(ms/1000));return[Math.floor(s/36
 function render(){clearInterval(tick);const first=S.name.split(' ')[0];const w=S.weeks.find(x=>x.week===weekNow());
  if(tab==='support')return supportView();
  if(tab==='receipts')return receiptView();
+ if(tab==='links')return linksView();
  let h=tabsHtml()+`<div class="up" id="up"></div><div class="card" style="margin-top:12px"><div class="row"><div><div class="mute">Hi ${esc(first)} 👋</div><h2>${S.open?'You’re on the clock':'Ready to start?'}</h2></div><span class="chip">$${S.rate}/hr</span></div>`;
  if(S.open){h+=`<div class="status" style="margin-top:14px"><span class="pulse"></span>${esc(S.open.job)} · since ${esc(S.open.in.replace(/^\w+ \w+ \d+, /,''))}</div><div class="timer" id="tm">00:00:00</div><div class="mute" style="margin-bottom:16px">Current shift</div>
   <button class="big out" id="pb" onclick="punch()">Clock out</button></div><div class="card" id="rooms"><div class="spin dk"></div></div>`;}
@@ -135,7 +143,7 @@ async function uploadAll(){if(uploading)return;uploading=true;let tries=0;const 
  uploading=false;}
 // ---------- Tech Support ----------
 let tab='clock',chat=[],askImgs=[],askVid=null,asking=false,askErr='';
-function tabsHtml(){return `<div class="tabbar"><div class="tabs"><button class="${tab==='clock'?'on':''}" onclick="tab='clock';render()">⏱ Clock</button><button class="${tab==='support'?'on':''}" onclick="tab='support';render()">🛠 Support</button><button class="${tab==='receipts'?'on':''}" onclick="tab='receipts';render()">🧾 Receipts</button></div></div>`;}
+function tabsHtml(){return `<div class="tabbar"><div class="tabs"><button class="${tab==='clock'?'on':''}" onclick="tab='clock';render()">⏱ Clock</button><button class="${tab==='support'?'on':''}" onclick="tab='support';render()">🛠 Support</button><button class="${tab==='receipts'?'on':''}" onclick="tab='receipts';render()">🧾 Receipts</button><button class="${tab==='links'?'on':''}" onclick="tab='links';render()">🔗 Links</button></div></div>`;}
 function md(t){const e=esc(t).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/`([^`]+)`/g,'<code>$1</code>');let o='',list=null;
  for(const ln of e.split('\n')){const b=ln.match(/^\s*[-*•]\s+(.*)/),n=ln.match(/^\s*\d+[.)]\s+(.*)/),hd=ln.match(/^#{1,4}\s+(.*)/);const want=b?'ul':n?'ol':null;
   if(list&&want!==list){o+=`</${list}>`;list=null;}if(want&&!list){o+=`<${want}>`;list=want;}
@@ -172,6 +180,8 @@ function toggleMic(){if(rec){rec.stop();return;}const SR=window.SpeechRecognitio
  try{r.start();rec=r;$('mic').classList.add('on');toast('Listening… tap 🎤 to stop');}catch(e){toast('Voice input isn’t supported here — tap the mic on your keyboard to dictate.',1);}}
 
 // ---------- Receipts ----------
+function linksView(){clearInterval(tick);
+ m.innerHTML=tabsHtml()+`<div class="card" style="margin-top:12px"><h2 style="font-size:18px">Links</h2><div class="sub">Quick links for the job.</div>`+LINKS.map(l=>`<a href="${esc(l.url)}" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:14px;margin-top:10px;padding:16px;border-radius:16px;background:#fff;border:1px solid #e2e8f0;box-shadow:var(--sh);text-decoration:none;color:var(--ink)"><span style="font-size:28px">${l.icon}</span><span style="flex:1"><b style="display:block;font-size:16px">${esc(l.label)}</b><span class="mute" style="font-size:13px">${esc(l.sub||'')}</span></span><span class="mute" style="font-size:20px">›</span></a>`).join('')+`</div>`;}
 let rcpts=[],rcBusy=false;
 function receiptView(){clearInterval(tick);const today=new Date().toDateString(),list=rcpts.filter(r=>r.day===today);
  m.innerHTML=tabsHtml()+`<div class="card" style="margin-top:12px"><h2 style="font-size:18px">Receipts</h2><div class="sub">Snap a receipt — it uploads to Expenses in Drive.</div>
