@@ -58,10 +58,12 @@ function sessionRow(code,inIso){return rows(code).find(r=>String(r.inT)===String
 function uploadPhoto(p,e){if(!p.data)return {error:'Photo data missing'};const r=sessionRow(p.code,p.inIso);// session row may be gone (deleted/edited shift): still save the photo, don't strand it
  const job=r?r.job:(JOBS.indexOf(p.job)>=0?p.job:JOBS[0]);
  const room=String(p.room).replace(/[^\w .-]/g,'').slice(0,40)||'0';const sf=masterFolder(job),rf=sub(sf,'Room '+room);
- const name='Room '+room+' '+Utilities.formatDate(new Date(p.takenAt),TZ,'yyyy-MM-dd HH-mm-ss')+(p.seq?' '+p.seq:'')+'.jpg';
- if(rf.getFilesByName(name).hasNext())return {ok:true,dup:true};// idempotent retry
+ const fn=p.fname?cleanName(p.fname):'';// checklist: custom file name, retake replaces old copy
+ const name=fn?fn+'.jpg':'Room '+room+' '+Utilities.formatDate(new Date(p.takenAt),TZ,'yyyy-MM-dd HH-mm-ss')+(p.seq?' '+p.seq:'')+'.jpg';
+ if(fn){const it=rf.getFilesByName(name);while(it.hasNext())it.next().setTrashed(true);}
+ else if(rf.getFilesByName(name).hasNext())return {ok:true,dup:true};// idempotent retry
  rf.createFile(Utilities.newBlob(Utilities.base64Decode(p.data),'image/jpeg',name));
- if(r){const c=sh().getRange(r.row,7,1,2);const v=c.getValues()[0];c.setValues([[Number(v[0]||0)+1,sf.getUrl()]]);}return {ok:true,orphan:!r};}
+ if(r){const c=sh().getRange(r.row,7,1,2);const v=c.getValues()[0];c.setValues([[Number(v[0]||0)+1,sf.getUrl()]]);}return {ok:true,orphan:!r,name:name};}
 function shiftPayReport(code,inT,h){const e=EMP[code],w=summary(code).weeks.find(x=>x.week===weekKey(inT));const prior=w?Math.max(0,w.hours-h):0;
  const reg=Math.max(0,Math.min(h,40-prior)),ot=h-reg,r=e.rate;
  return '\n\n--- Pay earned this shift ---\nRegular: '+reg.toFixed(2)+' h x $'+r+' = $'+(reg*r).toFixed(2)+(ot>0?'\nOvertime: '+ot.toFixed(2)+' h x $'+(r*1.5)+' = $'+(ot*r*1.5).toFixed(2):'')+'\nShift pay: $'+(reg*r+ot*r*1.5).toFixed(2);}

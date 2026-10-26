@@ -66,8 +66,13 @@ textarea{width:100%;min-height:96px;border:2px solid var(--line);border-radius:1
 <script>
 // ===== Links tab: edit this list to add/remove links =====
 // ios/android: native app deep links tried in order first; url = web fallback
+// ===== Checklists: add templates here =====
+const CHECKLISTS={
+ 'Default AE checklist':['Amp installed','4 speakers installed','Service loop above ceiling','Picture of call button installed'],
+};
 const LINKS=[
  {icon:'📍',label:'Directions to WT Moore',sub:'Open in Maps',ios:['comgooglemaps://?daddr=W.T.+Moore+Elementary+School&directionsmode=driving','maps://?daddr=W.T.+Moore+Elementary+School'],android:['google.navigation:q=W.T.+Moore+Elementary+School'],url:'https://www.google.com/maps/search/?api=1&query=W.T.+Moore+Elementary+School'},
+ {icon:'☑️',label:'Checklist',sub:'Room photos by checklist',tab:'checklist'},
  {icon:'🧾',label:'Receipts',sub:'Snap & upload a receipt',tab:'receipts'}, // tab: opens an in-app tab
  {icon:'🗺️',label:'Google Maps',sub:'maps.google.com',ios:['comgooglemaps://'],url:'https://maps.google.com'},
  {icon:'📁',label:'TSS Google Drive',sub:'drive.google.com',ios:['googledrive://'],android:['intent://#Intent;package=com.google.android.apps.docs;scheme=googledrive;S.browser_fallback_url='+encodeURIComponent('https://drive.google.com')+';end'],url:'https://drive.google.com'},
@@ -108,6 +113,7 @@ function render(){clearInterval(tick);const first=S.name.split(' ')[0];const w=S
  if(tab==='support')return supportView();
  if(tab==='receipts')return receiptView();
  if(tab==='links')return linksView();
+ if(tab==='checklist')return checklistView();
  let h=tabsHtml()+`<div class="up" id="up"></div><div class="card" style="margin-top:12px"><div class="row"><div><div class="mute">Hi ${esc(first)} 👋</div><h2>${S.open?'You’re on the clock':'Ready to start?'}</h2></div><span class="chip">$${S.rate}/hr</span></div>`;
  if(S.open){h+=`<div class="status" style="margin-top:14px"><span class="pulse"></span>${esc(S.open.job)} · since ${esc(S.open.in.replace(/^\w+ \w+ \d+, /,''))}</div><div class="timer" id="tm">00:00:00</div><div class="mute" style="margin-bottom:16px">Current shift</div>
   <button class="big out" id="pb" onclick="punch()">Clock out</button></div><div class="card" id="rooms"><div class="spin dk"></div></div>`;}
@@ -194,6 +200,20 @@ function toggleMic(){if(rec){rec.stop();return;}const SR=window.SpeechRecognitio
 // ---------- Receipts ----------
 function linksView(){clearInterval(tick);
  m.innerHTML=tabsHtml()+`<div class="card" style="margin-top:12px"><h2 style="font-size:18px">Links</h2><div class="sub">Quick links for the job.</div>`+LINKS.map(l=>`<a ${l.tab?`href="#" onclick="tab='${l.tab}';render();scrollTo(0,0);return false"`:`href="${esc(l.url)}" target="_blank" rel="noopener" onclick="openLink(${LINKS.indexOf(l)});return false"`} style="display:flex;align-items:center;gap:14px;margin-top:10px;padding:16px;border-radius:16px;background:#fff;border:1px solid #e2e8f0;box-shadow:var(--sh);text-decoration:none;color:var(--ink)"><span style="font-size:28px">${l.icon}</span><span style="flex:1"><b style="display:block;font-size:16px">${esc(l.label)}</b><span class="mute" style="font-size:13px">${esc(l.sub||'')}</span></span><span class="mute" style="font-size:20px">›</span></a>`).join('')+`</div>`;}
+let ck={room:'',tpl:'',done:{},busy:''};try{Object.assign(ck,JSON.parse(localStorage.ck||'{}'));ck.busy=''}catch(e){}
+function ckSave(){localStorage.ck=JSON.stringify({room:ck.room,tpl:ck.tpl,done:ck.done})}
+function ckKey(it){return ck.tpl+'|'+ck.room+'|'+it}
+function checklistView(){clearInterval(tick);const items=CHECKLISTS[ck.tpl]||[],n=items.filter(i=>ck.done[ckKey(i)]).length;
+ m.innerHTML=tabsHtml()+`<div class="up" id="up"></div><div class="card" style="margin-top:12px"><div class="row"><h2 style="font-size:18px">Checklist</h2>${items.length?`<span class="chip" style="${n===items.length?'background:#dcfce7;color:#15803d':''}">${n}/${items.length}</span>`:''}</div><div class="sub">Type the room, pick a checklist, then photo each item.</div>
+ <input id="ckroom" class="field" inputmode="numeric" maxlength="20" placeholder="Room number, e.g. 204" value="${esc(ck.room)}" oninput="ck.room=this.value.trim();ckSave()" onchange="checklistView()">
+ ${Object.keys(CHECKLISTS).map(t=>`<button class="big" style="margin-top:10px;height:56px;font-size:16px;${ck.tpl===t?'':'background:#fff;color:var(--ink);border:1px solid #e2e8f0'}" onclick="ckPick('${esc(t)}')">${ck.tpl===t?'✓ ':''}${esc(t)}</button>`).join('')}
+ ${items.length&&ck.room?items.map((it,i)=>{const d=ck.done[ckKey(it)],b=ck.busy===it;return `<div style="display:flex;align-items:center;gap:12px;margin-top:10px;padding:14px;border-radius:16px;background:${d?'#f0fdf4':'#fff'};border:1px solid ${d?'#86efac':'#e2e8f0'}"><span style="font-size:24px">${d?'✅':'⬜️'}</span><span style="flex:1"><b style="display:block;font-size:15px">${esc(it)}</b><span class="mute" style="font-size:12px">${esc(it)} (${esc(ck.room)}).jpg</span></span><label style="flex:none;padding:10px 12px;border-radius:12px;font-weight:700;font-size:14px;background:${d?'#fff':'linear-gradient(135deg,var(--brand),var(--brand2))'};color:#2563eb;border:1px solid #dbeafe">${b?'<span class="spin"></span>':d?'Retake':'📷 Photo'}<input type="file" accept="image/*" capture="environment" hidden ${ck.busy?'disabled':''} onchange="ckShot(this,${i})"></label></div>`}).join('')+'<div class="dn">🔒 Photos upload automatically to TSS Google Drive · not saved to your phone</div>':(items.length?'<div class="empty-st"><div class="ei">🚪</div><b>Enter a room number</b>Then take a photo for each item.</div>':'')}</div>`;}
+function ckPick(t){const r=$('ckroom');ck.room=(r?r.value:ck.room).trim();if(!ck.room){alert('Type the room number first');return}ck.tpl=t;ckSave();checklistView();}
+async function ckShot(inp,i){const f=inp.files[0];inp.value='';const it=(CHECKLISTS[ck.tpl]||[])[i];if(!f||!it||ck.busy)return;const room=ck.room;ck.busy=it;checklistView();
+ try{const b=await createImageBitmap(f,{imageOrientation:'from-image'});const r=await call({action:'photo',code,inIso:S&&S.open?S.open.inIso:'',room,takenAt:new Date().toISOString(),seq:Date.now(),job:S&&S.open?S.open.job:(S&&S.jobs?S.jobs[0]:undefined),fname:it+' ('+room+')',data:await b64(await toJpeg(b,b.width,b.height))},90000);
+  if(r&&r.error)throw new Error(r.error);if(r&&!r.name)alert('Uploaded, but the server is on an older version so the file name may not match. Tell Austin.');
+  ck.done[ck.tpl+'|'+room+'|'+it]=1;ckSave();}catch(e){alert('Upload failed: '+e.message+' — try again.');}
+ ck.busy='';checklistView();}
 let rcpts=[],rcBusy=false;
 function receiptView(){clearInterval(tick);const today=new Date().toDateString(),list=rcpts.filter(r=>r.day===today);
  m.innerHTML=tabsHtml()+`<div class="card" style="margin-top:12px"><h2 style="font-size:18px">Receipts</h2><div class="sub">Snap a receipt — it uploads to Expenses in Drive.</div>
