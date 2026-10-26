@@ -97,7 +97,8 @@ function receipt(p,e){const ss=SpreadsheetApp.getActive(),n=cleanName(p.note).sl
  const f=sub(sub(sheetParent(),'Expenses'),e.name).createFile(Utilities.newBlob(Utilities.base64Decode(p.data),'image/jpeg',e.name+' '+Utilities.formatDate(t,TZ,'yyyy-MM-dd HH-mm-ss')+' ET'+(n?' - '+n:'')+'.jpg'));
  const x=ss.getSheetByName('Expenses')||ss.insertSheet('Expenses').appendRow(['timestamp','code','name','note','file url']);x.appendRow([Utilities.formatDate(t,TZ,'yyyy-MM-dd HH:mm:ss'),p.code,e.name,n,f.getUrl()]);return {ok:true,url:f.getUrl()};}
 // ===== Manager portal (read-only; only EMP entries with manager:true) =====
-function managerData(e){if(!e.manager)return {error:'Not authorized'};
+function managerData(e){if(!e||e.manager!==true)return {error:'Not authorized'};try{return managerData_();}catch(x){return {error:'Manager error: '+x.message};}}
+function managerData_(){
  const ss=SpreadsheetApp.getActive(),now=new Date(),cut=new Date(now.getTime()-14*864e5),thisW=weekKey(now),prevW=weekKey(new Date(now.getTime()-7*864e5));
  const tab=n=>{const t=ss.getSheetByName(n);return t?t.getDataRange().getValues().slice(1):[];},ts=v=>v instanceof Date?Utilities.formatDate(v,TZ,'yyyy-MM-dd HH:mm:ss'):String(v);
  const P=tab('Punches').map(r=>({code:String(r[0]),name:r[1],job:r[2],inT:r[3],outT:r[4],hours:Number(r[5]||0),photos:Number(r[6]||0),folder:r[7]||''})).filter(r=>r.inT);
@@ -105,7 +106,7 @@ function managerData(e){if(!e.manager)return {error:'Not authorized'};
  const weeks={};P.filter(r=>r.outT).forEach(r=>{const k=weekKey(r.inT);if(k!==thisW&&k!==prevW)return;const id=r.code+'|'+k;(weeks[id]=weeks[id]||{code:r.code,week:k,hours:0}).hours+=r.hours;});
  const totals=Object.keys(EMP).map(c=>{const x=EMP[c],f=k=>{const h=(weeks[c+'|'+k]||{hours:0}).hours,reg=Math.min(40,h),ot=Math.max(0,h-40);return {hours:+h.toFixed(2),overtime:+ot.toFixed(2),pay:+(reg*x.rate+ot*x.rate*1.5).toFixed(2)};};return {code:c,name:x.name,rate:x.rate,thisWeek:f(thisW),lastWeek:f(prevW)};});
  const shifts=P.filter(r=>new Date(r.inT)>=cut).map(r=>({name:r.name,code:r.code,job:r.job,in:fmt(r.inT),inIso:String(r.inT),out:r.outT?fmt(r.outT):'',hours:+r.hours.toFixed(2),pay:+(r.hours*((EMP[r.code]||{}).rate||0)).toFixed(2),photos:r.photos,folder:r.folder})).reverse();
- const photos=[];try{JOBS.forEach(j=>{const mf=masterFolder(j),fs=mf.getFolders();while(fs.hasNext()&&photos.length<400){const rf=fs.next(),it=rf.getFiles();while(it.hasNext()){const f=it.next(),d=f.getDateCreated();if(d>=cut)photos.push({job:j,room:rf.getName(),name:f.getName(),url:f.getUrl(),time:Utilities.formatDate(d,TZ,'yyyy-MM-dd HH:mm'),checklist:!/^Room /.test(f.getName())});}}});}catch(x){}
+ const photos=[],t0=Date.now(),cap=()=>photos.length<200&&Date.now()-t0<8000;try{JOBS.forEach(j=>{const mf=masterFolder(j),fs=mf.getFolders();while(fs.hasNext()&&cap()){const rf=fs.next(),it=rf.getFiles();while(it.hasNext()&&cap()){const f=it.next(),d=f.getDateCreated();if(d>=cut)photos.push({job:j,room:rf.getName(),name:f.getName(),url:f.getUrl(),time:Utilities.formatDate(d,TZ,'yyyy-MM-dd HH:mm'),checklist:!/^Room /.test(f.getName())});}}});}catch(x){}
  photos.sort((a,b)=>a.time<b.time?1:-1);
  const receipts=tab('Expenses').map(r=>({time:ts(r[0]),code:String(r[1]),name:r[2],note:r[3],url:r[4]})).reverse().slice(0,200);
  const support=tab('Support').map(r=>({time:ts(r[0]),code:String(r[1]),name:r[2],question:r[3],photos:r[4],answer:r[5],offTopic:!!r[6]})).reverse().slice(0,200);
@@ -113,11 +114,11 @@ function managerData(e){if(!e.manager)return {error:'Not authorized'};
 function out(o){return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);}
 function doPost(ev){let lock=null;try{
  const p=JSON.parse(ev.postData.contents),e=EMP[p.code];if(!e)return out({error:'Invalid code'});
+ if(p.action==='manager')return out(managerData(e));// manager portal: read-only, server-side manager check
  if(p.action==='master')return out(p.name?renameMaster(p.job,p.name):(()=>{const f=masterFolder(p.job);return {master:f.getName(),url:f.getUrl()};})());
  if(p.action==='ask')return out(ask(p,e));
  if(p.action==='photo')return out(uploadPhoto(p,e));
  if(p.action==='receipt')return out(receipt(p,e));
- if(p.action==='manager')return out(managerData(e));
  if(p.action==='punch'){lock=LockService.getScriptLock();lock.waitLock(20000);const open=rows(p.code).find(r=>!r.outT),now=new Date();
   if(!open){if(JOBS.indexOf(p.job)<0)return out({error:'Pick a job'});
    sh().appendRow([p.code,e.name,p.job,now.toISOString(),'','']);
