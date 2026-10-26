@@ -67,6 +67,7 @@ textarea{width:100%;min-height:96px;border:2px solid var(--line);border-radius:1
 // ===== Links tab: edit this list to add/remove links =====
 const LINKS=[
  {icon:'📍',label:'Directions to WT Moore',sub:'Open in Maps',url:'https://www.google.com/maps/search/?api=1&query=W.T.+Moore+Elementary+School'},
+ {icon:'🧾',label:'Receipts',sub:'Snap & upload a receipt',tab:'receipts'}, // tab: opens an in-app tab
  {icon:'🗺️',label:'Google Maps',sub:'maps.google.com',url:'https://maps.google.com'},
  {icon:'📁',label:'TSS Google Drive',sub:'drive.google.com',url:'https://drive.google.com'},
 ];
@@ -181,7 +182,7 @@ function toggleMic(){if(rec){rec.stop();return;}const SR=window.SpeechRecognitio
 
 // ---------- Receipts ----------
 function linksView(){clearInterval(tick);
- m.innerHTML=tabsHtml()+`<div class="card" style="margin-top:12px"><h2 style="font-size:18px">Links</h2><div class="sub">Quick links for the job.</div>`+LINKS.map(l=>`<a href="${esc(l.url)}" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:14px;margin-top:10px;padding:16px;border-radius:16px;background:#fff;border:1px solid #e2e8f0;box-shadow:var(--sh);text-decoration:none;color:var(--ink)"><span style="font-size:28px">${l.icon}</span><span style="flex:1"><b style="display:block;font-size:16px">${esc(l.label)}</b><span class="mute" style="font-size:13px">${esc(l.sub||'')}</span></span><span class="mute" style="font-size:20px">›</span></a>`).join('')+`</div>`;}
+ m.innerHTML=tabsHtml()+`<div class="card" style="margin-top:12px"><h2 style="font-size:18px">Links</h2><div class="sub">Quick links for the job.</div>`+LINKS.map(l=>`<a ${l.tab?`href="#" onclick="tab='${l.tab}';render();scrollTo(0,0);return false"`:`href="${esc(l.url)}" target="_blank" rel="noopener"`} style="display:flex;align-items:center;gap:14px;margin-top:10px;padding:16px;border-radius:16px;background:#fff;border:1px solid #e2e8f0;box-shadow:var(--sh);text-decoration:none;color:var(--ink)"><span style="font-size:28px">${l.icon}</span><span style="flex:1"><b style="display:block;font-size:16px">${esc(l.label)}</b><span class="mute" style="font-size:13px">${esc(l.sub||'')}</span></span><span class="mute" style="font-size:20px">›</span></a>`).join('')+`</div>`;}
 let rcpts=[],rcBusy=false;
 function receiptView(){clearInterval(tick);const today=new Date().toDateString(),list=rcpts.filter(r=>r.day===today);
  m.innerHTML=tabsHtml()+`<div class="card" style="margin-top:12px"><h2 style="font-size:18px">Receipts</h2><div class="sub">Snap a receipt — it uploads to Expenses in Drive.</div>
