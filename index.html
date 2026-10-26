@@ -1,4 +1,5 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8">
+<!doctype html><html lang="en"><head>
+<meta http-equiv="Cache-Control" content="no-cache"><meta http-equiv="Pragma" content="no-cache"><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="color-scheme" content="light only"><meta name="theme-color" content="#ffffff">
 <title>TSShourtracker</title>
 <style>
@@ -64,6 +65,12 @@ textarea{width:100%;min-height:96px;border:2px solid var(--line);border-radius:1
 <header><div class="logo">TSS</div><div><b>Hour Tracker</b><small>TechSource Solutions</small></div><div class="sp"></div><button class="link" id="lo" style="display:none" onclick="location.reload()">Log out</button></header>
 <main id="m"></main><div id="toast"></div>
 <script>
+// ===== App version: bump on every release; open pages auto-reload when a newer one is live =====
+const APP_V='26';
+async function vCheck(){try{if(uploading||(typeof ck!=='undefined'&&ck.busy)||(typeof rcBusy!=='undefined'&&rcBusy))return;const t=await (await fetch(location.pathname+'?cb='+Date.now(),{cache:'no-store'})).text(),v=(t.match(/APP_V='(\d+)'/)||[])[1];
+ if(v&&v!==APP_V)location.replace(location.pathname+'?v='+v);}catch(e){}}
+addEventListener('load',vCheck);document.addEventListener('visibilitychange',()=>{if(!document.hidden)vCheck()});addEventListener('pageshow',e=>{if(e.persisted)vCheck()});
+
 // ===== Links tab: edit this list to add/remove links =====
 // ios/android: native app deep links tried in order first; url = web fallback
 // ===== Checklists: add templates here =====
@@ -133,7 +140,7 @@ async function tx(st,mode,fn){const d=await DB;return new Promise((ok,no)=>{cons
 const allPhotos=()=>tx('photos','readonly',s=>s.getAll());
 const sessKey=()=>code+'|'+(S&&S.open?S.open.inIso:'');
 async function rooms(){const r=await tx('rooms','readonly',s=>s.get(sessKey()));return r?r.list:[];}
-async function addRoom(){const n=$('roomNo').value.trim().replace(/[^\w .-]/g,'');if(!n)return toast('Enter a room number',1);const l=await rooms();if(!l.includes(n))l.push(n);await tx('rooms','readwrite',s=>s.put({k:sessKey(),list:l}));openRoom(n);}
+async function addRoom(){const n=$('roomNo').value.trim().replace(/[^\w .-]/g,'');if(!n)return toast('Enter a room number',1);const l=await rooms();if(!l.includes(n))l.push(n);await tx('rooms','readwrite',s=>s.put({k:sessKey(),list:l}));openRoom(n,1);}// typed room: always ask checklist type
 async function renameM(){const n=prompt('Drive folder name for '+S.open.job+' (e.g. the school):',mname);if(!n)return;try{const r=await call({action:'master',code,job:S.open.job,name:n});mname=r.master;$('mname').textContent=mname;toast('Folder renamed ✓');}catch(e){toast(e.message,1);}}
 let cur=null;
 async function renderRooms(){const el=$('rooms');if(!el||!S.open)return;if(!mname){try{mname=(await call({action:'master',code,job:S.open.job})).master;}catch(e){mname=S.open.job;}}
