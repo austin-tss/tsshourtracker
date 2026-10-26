@@ -72,7 +72,6 @@ const CHECKLISTS={
 };
 const LINKS=[
  {icon:'📍',label:'Directions to WT Moore',sub:'Open in Maps',ios:['comgooglemaps://?daddr=W.T.+Moore+Elementary+School&directionsmode=driving','maps://?daddr=W.T.+Moore+Elementary+School'],android:['google.navigation:q=W.T.+Moore+Elementary+School'],url:'https://www.google.com/maps/search/?api=1&query=W.T.+Moore+Elementary+School'},
- {icon:'☑️',label:'Checklist',sub:'Room photos by checklist',tab:'checklist'},
  {icon:'🧾',label:'Receipts',sub:'Snap & upload a receipt',tab:'receipts'}, // tab: opens an in-app tab
  {icon:'🗺️',label:'Google Maps',sub:'maps.google.com',ios:['comgooglemaps://'],url:'https://maps.google.com'},
  {icon:'📁',label:'TSS Google Drive',sub:'drive.google.com',ios:['googledrive://'],android:['intent://#Intent;package=com.google.android.apps.docs;scheme=googledrive;S.browser_fallback_url='+encodeURIComponent('https://drive.google.com')+';end'],url:'https://drive.google.com'},
@@ -142,9 +141,20 @@ async function renderRooms(){const el=$('rooms');if(!el||!S.open)return;if(!mnam
  el.innerHTML=`<div class="row"><h2 style="font-size:18px">Rooms</h2><button class="chip" style="border:0" onclick="renameM()">📁 <span id="mname">${esc(mname)}</span> ✎</button></div><div class="sub" style="margin:4px 0 12px">Snap room photos — they upload to Drive when you clock out.</div>
  <div class="add" style="margin-top:0"><input id="roomNo" class="field" style="margin:0" inputmode="numeric" placeholder="Room number" onkeydown="if(event.key==='Enter')addRoom()"><button class="btn" onclick="addRoom()">Add</button></div>
  <div class="tiles">${l.map(r=>{const n=ph.filter(p=>p.room===r).length;return `<button class="tile empty" onclick="openRoom('${esc(r)}')">${n?'🗂️':'📷'}<span class="lbl" style="position:absolute"><b>Room ${esc(r)}</b>${n?n+' photo'+(n>1?'s':'')+' saved':'No photos yet'}</span></button>`;}).join('')}</div>${l.length?'':'<div class="empty-st"><div class="ei">🚪</div><b>No rooms yet</b>Add a room number to start taking photos.</div>'}`;}
-async function openRoom(r){cur=r;const n=(await allPhotos()).filter(p=>p.inIso===S.open.inIso&&p.room===r).length;
+function ckCh(){try{return JSON.parse(localStorage.ckch||'{}')}catch(e){return{}}}
+function ckSet(r,v){const c=ckCh();if(v==null)delete c[sessKey()+'|'+r];else c[sessKey()+'|'+r]=v;localStorage.ckch=JSON.stringify(c);}
+async function openRoom(r,pick){cur=r;const v=pick?null:ckCh()[sessKey()+'|'+r];if(v==='free')return freeRoom(r);if(v&&CHECKLISTS[v])return roomCk(r,v);
+ const T=Object.keys(CHECKLISTS),bs='margin-top:10px;height:64px;font-size:17px;background:#fff;color:var(--ink);border:1px solid #e2e8f0;box-shadow:var(--sh);display:flex;align-items:center;justify-content:space-between;padding:0 18px';
+ $('rooms').innerHTML=`<div class="row"><button class="link" style="padding:0" onclick="renderRooms()">‹ Rooms</button></div><h2 style="font-size:18px;margin:6px 0 4px">Choose checklist type for Room ${esc(r)}</h2><div class="sub">Pick a checklist, or just take photos.</div>
+ ${T.map((t,i)=>`<button class="big" style="${bs}" onclick="ckSet(cur,Object.keys(CHECKLISTS)[${i}]);openRoom(cur)"><span style="color:var(--ink);font-weight:700">☑️ ${esc(t)}</span><span style="color:#64748b;font-size:14px;font-weight:600">${CHECKLISTS[t].length} items ›</span></button>`).join('')}
+ <button class="big" style="${bs}" onclick="ckSet(cur,'free');openRoom(cur)"><span style="color:var(--ink);font-weight:700">📷 No checklist – just take photos</span><span style="color:#64748b;font-size:14px;font-weight:600">›</span></button>`;}
+function roomCk(r,t){ck.room=r;ck.tpl=t;const items=CHECKLISTS[t],n=items.filter(i=>ck.done[ckKey(i)]).length;
+ $('rooms').innerHTML=`<div class="row"><button class="link" style="padding:0" onclick="renderRooms()">‹ Rooms</button><span class="chip" style="${n===items.length?'background:#dcfce7;color:#15803d':''}">${n}/${items.length}</span></div><h2 style="font-size:18px;margin:6px 0 2px">Room ${esc(r)}</h2><div class="mute" style="margin-bottom:4px">${esc(t)} · <a href="#" onclick="ckSet(cur);openRoom(cur,1);return false" style="color:#2563eb">Change</a></div>
+ ${items.map((it,i)=>{const d=ck.done[ckKey(it)],b=ck.busy===it;return `<div style="display:flex;align-items:center;gap:12px;margin-top:10px;padding:14px;border-radius:16px;background:${d?'#f0fdf4':'#fff'};border:1px solid ${d?'#86efac':'#e2e8f0'}"><span style="font-size:24px">${d?'✅':'⬜️'}</span><span style="flex:1"><b style="display:block;font-size:15px">${esc(it)}</b><span class="mute" style="font-size:12px">${esc(it)} (${esc(r)}).jpg</span></span><label style="flex:none;padding:10px 12px;border-radius:12px;font-weight:700;font-size:14px;background:${d?'#fff':'linear-gradient(135deg,var(--brand),var(--brand2))'};color:${d?'#2563eb':'#fff'};border:1px solid #dbeafe">${b?'<span class="spin"></span>':d?'Retake':'📷 Photo'}<input type="file" accept="image/*" capture="environment" hidden ${ck.busy?'disabled':''} onchange="ckShot(this,${i})"></label></div>`}).join('')}
+ <div class="dn">🔒 Photos upload automatically to TSS Google Drive · not saved to your phone</div>`;}
+async function freeRoom(r){cur=r;const n=(await allPhotos()).filter(p=>p.inIso===S.open.inIso&&p.room===r).length;
  $('rooms').innerHTML=`<div class="row"><button class="link" style="padding:0" onclick="renderRooms()">‹ Rooms</button></div><h2 style="font-size:18px;margin:6px 0 4px">Room ${esc(r)}</h2>
- <div class="mute" id="pc" class="sub" style="margin-bottom:12px">${n?n+' photo'+(n>1?'s':'')+' saved · uploads at clock-out':'No photos yet'}</div>
+ <div class="mute" id="pc" class="sub" style="margin-bottom:12px">${n?n+' photo'+(n>1?'s':'')+' saved · uploads at clock-out':'No photos yet'} · <a href="#" onclick="ckSet(cur);openRoom(cur,1);return false" style="color:#2563eb">Change</a></div>
  <label class="big" style="display:grid;place-items:center;background:linear-gradient(135deg,var(--brand),var(--brand2));color:#2563eb"><span>📷 Take Photo</span><input type="file" accept="image/*" capture="environment" hidden onchange="fileShot(this)"></label><div class="dn">🔒 Photos upload automatically to TSS Google Drive · not saved to your phone</div>`;}
 async function toJpeg(src,w,h){const k=Math.min(1,1280/Math.max(w,h)),c=document.createElement('canvas');c.width=Math.round(w*k);c.height=Math.round(h*k);c.getContext('2d').drawImage(src,0,0,c.width,c.height);return new Promise(ok=>c.toBlob(ok,'image/jpeg',0.75));}
 async function save(blob){await tx('photos','readwrite',s=>s.add({code,inIso:S.open.inIso,room:cur,takenAt:new Date().toISOString(),blob}));const n=(await allPhotos()).filter(p=>p.inIso===S.open.inIso&&p.room===cur).length;toast('Photo '+n+' saved for Room '+cur);openRoom(cur);}
@@ -216,11 +226,12 @@ function checklistView(){clearInterval(tick);const items=CHECKLISTS[ck.tpl]||[],
 function ckNext(){const r=$('ckroom'),v=(r?r.value:'').trim();if(!v){r&&r.focus();toast('Type the room number first',1);return}if(v!==ck.room)ck.tpl='';ck.room=v;ck.edit=false;ckSave();checklistView();}
 function ckRoom(){ck.edit=true;checklistView();}
 function ckPick(i){ck.tpl=Object.keys(CHECKLISTS)[i];ckSave();checklistView();}
-async function ckShot(inp,i){const f=inp.files[0];inp.value='';const it=(CHECKLISTS[ck.tpl]||[])[i];if(!f||!it||ck.busy)return;const room=ck.room;ck.busy=it;checklistView();
+function ckRe(){tab==='clock'&&$('rooms')?roomCk(ck.room,ck.tpl):checklistView()}
+async function ckShot(inp,i){const f=inp.files[0];inp.value='';const it=(CHECKLISTS[ck.tpl]||[])[i];if(!f||!it||ck.busy)return;const room=ck.room;ck.busy=it;ckRe();
  try{const b=await createImageBitmap(f,{imageOrientation:'from-image'});const r=await call({action:'photo',code,inIso:S&&S.open?S.open.inIso:'',room,takenAt:new Date().toISOString(),seq:Date.now(),job:S&&S.open?S.open.job:(S&&S.jobs?S.jobs[0]:undefined),fname:it+' ('+room+')',data:await b64(await toJpeg(b,b.width,b.height))},90000);
   if(r&&r.error)throw new Error(r.error);if(r&&!r.name)alert('Uploaded, but the server is on an older version so the file name may not match. Tell Austin.');
   ck.done[ck.tpl+'|'+room+'|'+it]=1;ckSave();}catch(e){alert('Upload failed: '+e.message+' — try again.');}
- ck.busy='';checklistView();}
+ ck.busy='';ckRe();}
 let rcpts=[],rcBusy=false;
 function receiptView(){clearInterval(tick);const today=new Date().toDateString(),list=rcpts.filter(r=>r.day===today);
  m.innerHTML=tabsHtml()+`<div class="card" style="margin-top:12px"><h2 style="font-size:18px">Receipts</h2><div class="sub">Snap a receipt — it uploads to Expenses in Drive.</div>
