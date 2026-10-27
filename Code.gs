@@ -142,7 +142,7 @@ function doPost(ev){let lock=null;try{
  if(p.action==='punch'){lock=LockService.getScriptLock();lock.waitLock(20000);const open=rows(p.code).find(r=>!r.outT),now=new Date();
   if(!open){if(JOBS.indexOf(p.job)<0)return out({error:'Pick a job'});
    sh().appendRow([p.code,e.name,p.job,now.toISOString(),'','']);
-   MailApp.sendEmail(e.to,'TSShourtracker: Clocked in – '+p.job,e.name+' clocked in\nJob: '+p.job+'\nTime: '+fmt(now),{cc:e.cc});}
+   MailApp.sendEmail(e.to,'TSShourtracker: Clocked in - '+p.job,e.name+' clocked in\nJob: '+p.job+'\nTime: '+fmt(now),{cc:e.cc});}
   else{const h=(now-new Date(open.inT))/36e5,np=Number(p.photos||0);let pl='';if(np>0){try{pl='\nPhotos: '+np+' uploading to '+masterFolder(open.job).getUrl();}catch(x){pl='\nPhotos: '+np+' uploading';}}sh().getRange(open.row,5,1,2).setValues([[now.toISOString(),h.toFixed(4)]]);
-   MailApp.sendEmail(e.to,'TSShourtracker: Clocked out – '+open.job,e.name+' clocked out\nJob: '+open.job+'\nIn: '+fmt(open.inT)+'\nOut: '+fmt(now)+'\nShift hours: '+h.toFixed(2)+pl+(e.shiftPay?shiftPayReport(p.code,open.inT,h):'')+(e.weekReport?weekReport(p.code,open.inT):''),{cc:e.cc});}}
+   MailApp.sendEmail(e.to,'TSShourtracker: Clocked out - '+open.job,e.name+' clocked out\nJob: '+open.job+'\nIn: '+fmt(open.inT)+'\nOut: '+fmt(now)+'\nShift hours: '+h.toFixed(2)+pl+(e.shiftPay?shiftPayReport(p.code,open.inT,h):'')+(e.weekReport?weekReport(p.code,open.inT):''),{cc:e.cc});}}
  return out(summary(p.code));}finally{if(lock)lock.releaseLock();}}
