@@ -66,8 +66,8 @@ textarea{width:100%;min-height:96px;border:2px solid var(--line);border-radius:1
 <main id="m"></main><div id="toast"></div>
 <script>
 // ===== App version: bump on every release; open pages auto-reload when a newer one is live =====
-const APP_V='27';
-async function vCheck(){try{if(uploading||(typeof ck!=='undefined'&&ck.busy)||(typeof rcBusy!=='undefined'&&rcBusy))return;const t=await (await fetch(location.pathname+'?cb='+Date.now(),{cache:'no-store'})).text(),v=(t.match(/APP_V='(\d+)'/)||[])[1];
+const APP_V='28';
+async function vCheck(){try{if(uploading||(typeof ck!=='undefined'&&ck.busy)||(typeof rcBusy!=='undefined'&&rcBusy)||(typeof rcPend!=='undefined'&&rcPend))return;const t=await (await fetch(location.pathname+'?cb='+Date.now(),{cache:'no-store'})).text(),v=(t.match(/APP_V='(\d+)'/)||[])[1];
  if(v&&v!==APP_V)location.replace(location.pathname+'?v='+v);}catch(e){}}
 addEventListener('load',vCheck);document.addEventListener('visibilitychange',()=>{if(!document.hidden)vCheck()});addEventListener('pageshow',e=>{if(e.persisted)vCheck()});
 
@@ -102,8 +102,8 @@ function toast(t,err){const e=$('toast');e.textContent=t;e.className='on'+(err?'
 async function call(body,ms){if(MOCK)return mock(body);const ac=new AbortController(),t=setTimeout(()=>ac.abort(),ms||45000);let r;
  try{r=await fetch(API,{method:'POST',body:JSON.stringify(body),signal:ac.signal});}catch(e){throw Error(e.name==='AbortError'?'Timed out — weak signal or server busy. Try again.':'No connection. Check signal and try again.');}finally{clearTimeout(t);}
  let j;try{j=await r.json();}catch(e){throw Error('Server error ('+r.status+'). Try again.');}if(j.error)throw Error(j.error);return j;}
-function mock(b){const t=new Date(Date.now()-(2*3600+17*60)*1000).toISOString();if(b.action==='master')return{master:'WT Moore'};if(b.action==='photo')return{ok:true};if(b.action==='receipt')return{ok:true,url:'#'};
- return{name:'William Griffin',rate:30,jobs:['WT Moore'],open:{job:'WT Moore',in:'Sat Oct 24, 7:02 AM ET',inIso:t},weeks:[{week:weekNow(),hours:31.5,regular:31.5,overtime:0,pay:945,shifts:[{job:'WT Moore',in:'Fri Oct 23, 7:00 AM ET',out:'Fri Oct 23, 3:30 PM ET',hours:8.5}]}]};}
+function mock(b){const t=new Date(Date.now()-(2*3600+17*60)*1000).toISOString();if(b.action==='master')return{master:'WT Moore'};if(b.action==='photo')return{ok:true};if(b.action==='scanreceipt')return{ok:true,readable:true,vendor:'HOFER KG',date:'2024-03-25',total:22.41,category:'Meals'};if(b.action==='receipt')return{ok:true,url:'#'};
+ return{plan:new URLSearchParams(location.search).get('plan')||'paid',name:'William Griffin',rate:30,jobs:['WT Moore'],open:{job:'WT Moore',in:'Sat Oct 24, 7:02 AM ET',inIso:t},weeks:[{week:weekNow(),hours:31.5,regular:31.5,overtime:0,pay:945,shifts:[{job:'WT Moore',in:'Fri Oct 23, 7:00 AM ET',out:'Fri Oct 23, 3:30 PM ET',hours:8.5}]}]};}
 function weekNow(){const p=Object.fromEntries(new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit',weekday:'short'}).formatToParts(new Date()).map(x=>[x.type,x.value]));
  const d=new Date(Date.UTC(+p.year,p.month-1,+p.day));const back=(['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].indexOf(p.weekday));d.setUTCDate(d.getUTCDate()-back);return d.toISOString().slice(0,10);}
 // ---------- Login keypad ----------
@@ -165,7 +165,7 @@ async function freeRoom(r){cur=r;const rp=(await allPhotos()).filter(p=>p.inIso=
  $('rooms').innerHTML=`<div class="row"><button class="link" style="padding:0" onclick="renderRooms()">‹ Rooms</button></div><h2 style="font-size:18px;margin:6px 0 4px">Room ${esc(r)}</h2>
  <div class="mute" id="pc" class="sub" style="margin-bottom:12px">${n?n+' photo'+(n>1?'s':''):'No photos yet'} · <a href="#" onclick="ckSet(cur);openRoom(cur,1);return false" style="color:#2563eb">Change</a></div>
  <label class="big" style="display:grid;place-items:center;background:linear-gradient(135deg,var(--brand),var(--brand2));color:#2563eb"><span>📷 Take Photo</span><input type="file" accept="image/*" capture="environment" hidden onchange="fileShot(this)"></label><div id="phst">${rp.map((p,i)=>`<div class="shift"><span>📷 Photo ${i+1}</span>${p.up?'<span style="color:#15803d;font-weight:700">✓ Uploaded</span>':p.err&&!uploading?`<button class="link" style="color:#dc2626" onclick="retryNow()">⚠️ Retry</button>`:'<span class="mute"><span class="spin dk" style="width:14px;height:14px;border-width:2px;vertical-align:-2px"></span> Uploading…</span>'}</div>`).join('')}</div><div class="dn">🔒 Photos upload automatically to TSS Google Drive · not saved to your phone</div>`;}
-async function toJpeg(src,w,h){const k=Math.min(1,1280/Math.max(w,h)),c=document.createElement('canvas');c.width=Math.round(w*k);c.height=Math.round(h*k);c.getContext('2d').drawImage(src,0,0,c.width,c.height);return new Promise(ok=>c.toBlob(ok,'image/jpeg',0.75));}
+async function toJpeg(src,w,h,mx,q){const k=Math.min(1,(mx||1280)/Math.max(w,h)),c=document.createElement('canvas');c.width=Math.round(w*k);c.height=Math.round(h*k);c.getContext('2d').drawImage(src,0,0,c.width,c.height);return new Promise(ok=>c.toBlob(ok,'image/jpeg',q||0.75));}
 async function save(blob){await tx('photos','readwrite',s=>s.add({code,inIso:S.open.inIso,room:cur,takenAt:new Date().toISOString(),blob}));const n=(await allPhotos()).filter(p=>p.inIso===S.open.inIso&&p.room===cur).length;toast('Photo '+n+' saved · uploading');openRoom(cur);uploadAll();}
 async function fileShot(i){const f=i.files[0];if(!f)return;try{const b=await createImageBitmap(f,{imageOrientation:'from-image'});await save(await toJpeg(b,b.width,b.height));}catch(e){toast('Could not save photo: '+e.message,1);}i.value='';}
 const b64=b=>new Promise(ok=>{const r=new FileReader();r.onload=()=>ok(r.result.split(',')[1]);r.readAsDataURL(b);});
@@ -187,7 +187,7 @@ function md(t){const e=esc(t).replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/`([
   if(b||n)o+=`<li>${(b||n)[1]}</li>`;else if(hd)o+=`<h4>${hd[1]}</h4>`;else if(ln.trim())o+=`<p>${ln}</p>`;}
  return o+(list?`</${list}>`:'');}
 function supportView(){clearInterval(tick);
- m.innerHTML=tabsHtml()+`<div class="up" id="up"></div><div class="card" style="margin-top:12px"><h2 style="font-size:18px">Tech Support</h2><div class="sub">Ask about installing displays, projectors, panels, mounts, cabling, HDMI/HDBaseT, audio or control. Add a photo to identify a part.</div>
+ m.innerHTML=tabsHtml()+`<div class="up" id="up"></div><div class="card" style="margin-top:12px"><h2 style="font-size:18px">Tech Support</h2><div class="sub">Ask about installing displays, projectors, panels, mounts, cabling, HDMI/HDBaseT, audio or control, or how to use this app (clock, photos, receipts). Add a photo to identify a part.</div>
  <div id="chat">${chat.length||asking?'':'<div class="empty-st" style="padding:4px 12px 16px"><div class="ei">🛠</div><b>How can we help?</b>Type, talk, or snap a photo of the install.</div>'}${chat.map(c=>`<div class="msg ${c.role==='user'?'u':'a'}">${c.role==='user'?esc(c.text)+(c.n?`<div class="mute" style="font-size:12px">📷 ${c.n} photo${c.n>1?'s':''}</div>`:''):md(c.text)}</div>`).join('')}${asking?'<div class="msg a"><span class="spin dk"></span> Thinking…</div>':''}</div>
  <textarea id="q" placeholder="${chat.length?'Ask a follow-up…':'e.g. How do I run HDBaseT from the wall plate to the projector?'}"></textarea>
  ${askErr?`<div class="err-box">⚠️ ${esc(askErr)} <button class="btn" style="height:36px;padding:0 14px;margin-left:auto" onclick="sendAsk()">Retry</button></div>`:''}
@@ -256,16 +256,42 @@ function mgView(){clearInterval(tick);const sec=(t,b)=>`<div class="card" style=
   const tt=d.totals.filter(f);h+=sec('📅 This week <span class="mute" style="font-size:13px;font-weight:500">(week of '+esc(d.thisWeek)+')</span>',tt.map(t=>row(`<b>${esc(t.name)}</b><div class="mute" style="font-size:13px">$${t.rate}/hr · last wk ${t.lastWeek.hours.toFixed(1)} h · ${money(t.lastWeek.pay)}</div>`,wk(t.thisWeek))).join('')+row('<b>Total this week</b>',`<b>${money(tt.reduce((a,t)=>a+t.thisWeek.pay,0))}</b>`));
   const sh=d.shifts.filter(f);h+=sec(`🕒 Shifts <span class="mute" style="font-size:13px;font-weight:500">last 14 days</span>`,sh.length?sh.map(x=>row(`<b>${esc(x.name)}</b> <span class="mute" style="font-size:13px">${esc(x.job)}</span><div class="mute" style="font-size:13px">${esc(x.in)}${x.out?' → '+esc(x.out.replace(/^\w+ \w+ \d+, /,'')):' · <b style="color:#15803d">on the clock</b>'}</div>${x.photos||x.folder?`<div style="font-size:13px">📷 ${x.photos||0} ${lk(x.folder,'folder')}</div>`:''}`,x.out?`<b>${x.hours.toFixed(2)} h</b><div class="mute" style="font-size:13px">${money(x.pay)}</div>`:'')).join(''):none('No shifts.'));
   const ph=d.photos;h+=sec(`📷 Photos & checklists <span class="mute" style="font-size:13px;font-weight:500">last 14 days</span>`,ph.length?ph.slice(0,80).map(x=>row(`${x.checklist?'☑️':'📷'} ${lk(x.url,esc(x.name))}<div class="mute" style="font-size:13px">${esc(x.job)} · ${esc(x.room)}</div>`,`<span class="mute" style="font-size:12px">${esc(x.time)}</span>`)).join(''):none('No photos.'));
-  const rc=d.receipts.filter(f);h+=sec('🧾 Receipts',rc.length?rc.slice(0,60).map(x=>row(`<b>${esc(x.name)}</b> ${lk(x.url,'view')}<div class="mute" style="font-size:13px">${esc(x.note||'(no note)')}</div>`,`<span class="mute" style="font-size:12px">${esc(x.time)}</span>`)).join(''):none('No receipts.'));
+  const rc=d.receipts.filter(f);h+=sec('🧾 Receipts',rc.length?rc.slice(0,60).map(x=>row(`<b>${esc(x.name)}</b> ${lk(x.url,'view')}<div class="mute" style="font-size:13px">${x.vendor||x.total!=null&&x.total!==''?`<b style="color:var(--ink)">${esc(x.vendor||'—')}</b>${x.total!=null&&x.total!==''?' · $'+Number(x.total).toFixed(2):''}${x.category?' · '+esc(x.category):''}${x.date?' · '+esc(x.date):''}<br>`:''}${esc(x.note||(x.vendor?'':'(no note)'))}</div>`,`<span class="mute" style="font-size:12px">${esc(x.time)}</span>`)).join(''):none('No receipts.'));
   const su=d.support.filter(f);h+=sec('🛠 Tech Support log',su.length?su.slice(0,60).map(x=>row(`<b>${esc(x.name)}</b>${x.offTopic?' <span class="chip" style="background:#fee2e2;color:#b91c1c;font-size:11px">OFF-TOPIC</span>':''}<div style="font-size:14px">${esc(x.question)}</div><div class="mute" style="font-size:12px">${esc(String(x.answer||'').slice(0,140))}</div>`,`<span class="mute" style="font-size:12px">${esc(x.time)}</span>`)).join(''):none('No questions.'));}
  m.innerHTML=h;}
 function mgrView(){if(!S||!S.manager){tab='clock';return render();}if(!mg&&!mgBusy&&!mgErr)mgLoad();else mgView();}
-let rcpts=[],rcBusy=false;
-function receiptView(){clearInterval(tick);const today=new Date().toDateString(),list=rcpts.filter(r=>r.day===today);
- m.innerHTML=tabsHtml()+`<div class="card" style="margin-top:12px"><h2 style="font-size:18px">Receipts</h2><div class="sub">Snap a receipt — it uploads to Expenses in Drive.</div>
- <input id="rnote" class="field" maxlength="60" placeholder="Note (optional), e.g. Home Depot">
- <label class="big" style="display:grid;place-items:center;background:linear-gradient(135deg,var(--brand),var(--brand2));color:#2563eb"><span>${rcBusy?'<span class="spin"></span> Uploading…':'📷 Take Photo'}</span><input type="file" accept="image/*" capture="environment" hidden ${rcBusy?'disabled':''} onchange="receiptShot(this)"></label><div class="dn">🔒 Photos upload automatically to TSS Google Drive · not saved to your phone</div>
- ${list.length?`<div style="margin-top:14px;font-weight:700;font-size:14px">Today</div>`+list.map(r=>`<div class="shift"><span>🧾 ${esc(r.note||'Receipt')}</span><a href="${esc(r.url)}" target="_blank" class="mute">${esc(r.time)}</a></div>`).join(''):'<div class="empty-st"><div class="ei">🧾</div><b>No receipts yet today</b>Uploaded receipts will show here.</div>'}</div>`;}
+let rcpts=[],rcBusy=false,rcPend=null,rcSaving=false;
+const RC_CATS=['Materials/Parts','Tools/Equipment','Fuel','Meals','Lodging','Travel/Parking','Office/Supplies','Other'];
+function rcList(){const today=new Date().toDateString(),list=rcpts.filter(r=>r.day===today);
+ return list.length?`<div style="margin-top:14px;font-weight:700;font-size:14px">Today</div>`+list.map(r=>`<div class="shift"><span>🧾 ${esc(r.vendor||r.note||'Receipt')}${r.total!=null&&r.total!==''?' · <b>$'+Number(r.total).toFixed(2)+'</b>':''}</span><a href="${esc(r.url)}" target="_blank" class="mute">${esc(r.time)}</a></div>`).join(''):'<div class="empty-st"><div class="ei">🧾</div><b>No receipts yet today</b>Uploaded receipts will show here.</div>';}
+function receiptView(){clearInterval(tick);if(rcPend)return rcConfirm();const paid=S&&S.plan==='paid';
+ m.innerHTML=tabsHtml()+`<div class="card" style="margin-top:12px"><h2 style="font-size:18px">Receipts</h2><div class="sub">${paid?'Scan a receipt — the app reads it, you confirm, and it saves to Expenses.':'Snap a receipt — it uploads to Expenses in Drive.'}</div>
+ ${paid?'':`<input id="rnote" class="field" maxlength="60" placeholder="Note (optional), e.g. Home Depot">`}
+ <label class="big" style="display:grid;place-items:center;background:linear-gradient(135deg,var(--brand),var(--brand2));color:#2563eb"><span>${rcBusy?`<span class="spin"></span> ${paid?'Reading receipt…':'Uploading…'}`:paid?'📷 Scan Receipt':'📷 Take Photo'}</span><input type="file" accept="image/*" capture="environment" hidden ${rcBusy?'disabled':''} onchange="${paid?'rcScan':'receiptShot'}(this)"></label>
+ ${paid?`<label class="btn sec" style="display:grid;place-items:center;margin-top:10px;${rcBusy?'opacity:.6':''}">🖼 Upload from photos<input type="file" accept="image/*" hidden ${rcBusy?'disabled':''} onchange="rcScan(this)"></label>`:''}
+ <div class="dn">🔒 Photos upload automatically to TSS Google Drive · not saved to your phone</div>${rcList()}</div>`;}
+async function rcScan(i){const f=i.files[0];i.value='';if(!f||rcBusy)return;rcBusy=true;receiptView();let data;
+ try{const b=await createImageBitmap(f,{imageOrientation:'from-image'});data=await b64(await toJpeg(b,b.width,b.height,1600,0.8));}catch(e){rcBusy=false;receiptView();return toast('Could not read that photo: '+e.message,1);}
+ let r={};try{r=await call({action:'scanreceipt',code,data},60000);}catch(e){r={err:e.message};}
+ rcBusy=false;rcPend={data,vendor:r.vendor||'',date:r.date||'',total:r.total==null?'':r.total,category:r.category||'Other',note:'',msg:r.err?'Couldn’t scan this one ('+r.err+'). Fill it in below, or cancel and retake.':r.readable===false?'Couldn’t read this receipt. Fill it in below, or cancel and retake it flat and in good light.':''};receiptView();}
+function rcConfirm(){const p=rcPend;
+ m.innerHTML=tabsHtml()+`<div class="card" style="margin-top:12px"><h2 style="font-size:18px">Confirm receipt</h2><div class="sub">${p.msg?'':'Check what the app read, fix anything wrong, then save.'}</div>
+ ${p.msg?`<div class="err-box" style="margin-bottom:12px">⚠️ ${esc(p.msg)}</div>`:''}
+ <img src="data:image/jpeg;base64,${p.data}" alt="Receipt" style="display:block;width:100%;max-height:200px;object-fit:contain;background:#f1f5f9;border-radius:14px;margin-bottom:12px">
+ <label class="mute" style="font-size:13px;font-weight:600">Vendor</label><input id="rv" class="field" maxlength="60" value="${esc(p.vendor)}" placeholder="e.g. Home Depot">
+ <label class="mute" style="font-size:13px;font-weight:600">Date</label><input id="rd" class="field" type="date" value="${esc(p.date)}">
+ <label class="mute" style="font-size:13px;font-weight:600">Total ($)</label><input id="rt" class="field" inputmode="decimal" value="${esc(p.total)}" placeholder="0.00">
+ <label class="mute" style="font-size:13px;font-weight:600">Category</label><select id="rc" class="field">${RC_CATS.map(c=>`<option${c===p.category?' selected':''}>${esc(c)}</option>`).join('')}</select>
+ <label class="mute" style="font-size:13px;font-weight:600">Note (optional)</label><input id="rn" class="field" maxlength="60" value="${esc(p.note)}" placeholder="e.g. Room 204 cable">
+ <button class="btn" style="width:100%;height:56px;font-size:17px" ${rcSaving?'disabled':''} onclick="rcSave()">${rcSaving?'<span class="spin"></span> Saving…':'✓ Save receipt'}</button>
+ <button class="btn sec" style="width:100%;margin-top:10px" ${rcSaving?'disabled':''} onclick="rcPend=null;receiptView()">Cancel</button></div>`;}
+function rcRead(){const p=rcPend;p.vendor=$('rv').value.trim();p.date=$('rd').value;p.total=$('rt').value.trim();p.category=$('rc').value;p.note=$('rn').value.trim();return p;}
+async function rcSave(){if(rcSaving)return;const p=rcRead(),t=parseFloat(p.total.replace(/[$,\s]/g,''));
+ if(!(t>=0)){return toast('Enter the total amount',1);}
+ rcSaving=true;rcConfirm();
+ try{const r=await call({action:'receipt',code,note:p.note,data:p.data,vendor:p.vendor,date:p.date,total:t,category:p.category},60000);
+  rcpts.unshift({day:new Date().toDateString(),time:new Date().toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}),note:p.note,vendor:p.vendor,total:t,url:r.url||'#'});rcPend=null;rcSaving=false;toast('Receipt saved');receiptView();}
+ catch(e){rcSaving=false;rcConfirm();toast('Save failed: '+e.message+' — tap Save again',1);}}
 async function receiptShot(i){const f=i.files[0];i.value='';if(!f||rcBusy)return;const note=($('rnote').value||'').trim();rcBusy=true;receiptView();$('rnote').value=note;
  try{const b=await createImageBitmap(f,{imageOrientation:'from-image'});const r=await call({action:'receipt',code,note,data:await b64(await toJpeg(b,b.width,b.height))});
   rcpts.unshift({day:new Date().toDateString(),time:new Date().toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}),note,url:r.url||'#'});toast('Receipt uploaded');rcBusy=false;receiptView();}
