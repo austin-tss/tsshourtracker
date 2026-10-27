@@ -66,7 +66,7 @@ textarea{width:100%;min-height:96px;border:2px solid var(--line);border-radius:1
 <main id="m"></main><div id="toast"></div>
 <script>
 // ===== App version: bump on every release; open pages auto-reload when a newer one is live =====
-const APP_V='28';
+const APP_V='29';
 async function vCheck(){try{if(uploading||(typeof ck!=='undefined'&&ck.busy)||(typeof rcBusy!=='undefined'&&rcBusy)||(typeof rcPend!=='undefined'&&rcPend))return;const t=await (await fetch(location.pathname+'?cb='+Date.now(),{cache:'no-store'})).text(),v=(t.match(/APP_V='(\d+)'/)||[])[1];
  if(v&&v!==APP_V)location.replace(location.pathname+'?v='+v);}catch(e){}}
 addEventListener('load',vCheck);document.addEventListener('visibilitychange',()=>{if(!document.hidden)vCheck()});addEventListener('pageshow',e=>{if(e.persisted)vCheck()});
@@ -79,6 +79,7 @@ const CHECKLISTS={
 };
 const LINKS=[
  {icon:'📍',label:'Directions to WT Moore',sub:'Open in Maps',ios:['comgooglemaps://?daddr=W.T.+Moore+Elementary+School&directionsmode=driving','maps://?daddr=W.T.+Moore+Elementary+School'],android:['google.navigation:q=W.T.+Moore+Elementary+School'],url:'https://www.google.com/maps/search/?api=1&query=W.T.+Moore+Elementary+School'},
+ {icon:'📍',label:'Directions to Ruediger',sub:'526 W 10th Ave, Tallahassee',ios:['comgooglemaps://?daddr=Ruediger+Elementary+School,+526+W+10th+Ave,+Tallahassee,+FL+32303&directionsmode=driving','maps://?daddr=Ruediger+Elementary+School,+526+W+10th+Ave,+Tallahassee,+FL+32303'],android:['google.navigation:q=Ruediger+Elementary+School,+526+W+10th+Ave,+Tallahassee,+FL+32303'],url:'https://www.google.com/maps/search/?api=1&query=Ruediger+Elementary+School,+526+W+10th+Ave,+Tallahassee,+FL+32303'},
  {icon:'🧾',label:'Receipts',sub:'Snap & upload a receipt',tab:'receipts'}, // tab: opens an in-app tab
  {icon:'🗺️',label:'Google Maps',sub:'maps.google.com',ios:['comgooglemaps://'],url:'https://maps.google.com'},
  {icon:'📁',label:'TSS Google Drive',sub:'drive.google.com',ios:['googledrive://'],android:['intent://#Intent;package=com.google.android.apps.docs;scheme=googledrive;S.browser_fallback_url='+encodeURIComponent('https://drive.google.com')+';end'],url:'https://drive.google.com'},
@@ -103,7 +104,7 @@ async function call(body,ms){if(MOCK)return mock(body);const ac=new AbortControl
  try{r=await fetch(API,{method:'POST',body:JSON.stringify(body),signal:ac.signal});}catch(e){throw Error(e.name==='AbortError'?'Timed out — weak signal or server busy. Try again.':'No connection. Check signal and try again.');}finally{clearTimeout(t);}
  let j;try{j=await r.json();}catch(e){throw Error('Server error ('+r.status+'). Try again.');}if(j.error)throw Error(j.error);return j;}
 function mock(b){const t=new Date(Date.now()-(2*3600+17*60)*1000).toISOString();if(b.action==='master')return{master:'WT Moore'};if(b.action==='photo')return{ok:true};if(b.action==='scanreceipt')return{ok:true,readable:true,vendor:'HOFER KG',date:'2024-03-25',total:22.41,category:'Meals'};if(b.action==='receipt')return{ok:true,url:'#'};
- return{plan:new URLSearchParams(location.search).get('plan')||'paid',name:'William Griffin',rate:30,jobs:['WT Moore'],open:{job:'WT Moore',in:'Sat Oct 24, 7:02 AM ET',inIso:t},weeks:[{week:weekNow(),hours:31.5,regular:31.5,overtime:0,pay:945,shifts:[{job:'WT Moore',in:'Fri Oct 23, 7:00 AM ET',out:'Fri Oct 23, 3:30 PM ET',hours:8.5}]}]};}
+ return{plan:new URLSearchParams(location.search).get('plan')||'paid',name:'William Griffin',rate:30,jobs:['WT Moore','Ruediger'],open:new URLSearchParams(location.search).has('out')?null:{job:'WT Moore',in:'Sat Oct 24, 7:02 AM ET',inIso:t},weeks:[{week:weekNow(),hours:31.5,regular:31.5,overtime:0,pay:945,shifts:[{job:'WT Moore',in:'Fri Oct 23, 7:00 AM ET',out:'Fri Oct 23, 3:30 PM ET',hours:8.5}]}]};}
 function weekNow(){const p=Object.fromEntries(new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit',weekday:'short'}).formatToParts(new Date()).map(x=>[x.type,x.value]));
  const d=new Date(Date.UTC(+p.year,p.month-1,+p.day));const back=(['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].indexOf(p.weekday));d.setUTCDate(d.getUTCDate()-back);return d.toISOString().slice(0,10);}
 // ---------- Login keypad ----------
@@ -175,7 +176,7 @@ let wake=null;function retryNow(){if(wake)wake();else uploadAll();}
 async function uploadAll(){if(uploading)return;uploading=true;let tries=0;const pend=p=>p.code===code&&!p.up&&p.blob;// upload right away, incl. the open shift (was deferred to clock-out)
  while(true){const ph=(await allPhotos()).filter(pend);if(!ph.length){if(tries){upMsg('All photos uploaded to Drive',100);toast('Photos uploaded ✓');setTimeout(()=>upMsg(''),4000);}break;}
   let done=0,why='';for(const p of ph){upMsg(`Uploading photos ${done}/${ph.length} · keep this open`,done/ph.length*100);
-   try{await call({action:'photo',code,inIso:p.inIso,room:p.room,takenAt:p.takenAt,seq:p.id,job:S&&S.jobs?S.jobs[0]:undefined,data:await b64(p.blob)},90000);await tx('photos','readwrite',s=>s.put({...p,blob:null,up:1,err:''}));done++;}catch(e){why=e.message;await tx('photos','readwrite',s=>s.put({...p,err:why||'failed'}));}phRe();}
+   try{await call({action:'photo',code,inIso:p.inIso,room:p.room,takenAt:p.takenAt,seq:p.id,job:S&&S.open?S.open.job:(S&&S.jobs?S.jobs[0]:undefined),data:await b64(p.blob)},90000);await tx('photos','readwrite',s=>s.put({...p,blob:null,up:1,err:''}));done++;}catch(e){why=e.message;await tx('photos','readwrite',s=>s.put({...p,err:why||'failed'}));}phRe();}
   tries++;const left=(await allPhotos()).filter(pend).length;if(left){const w=Math.min(60,5*tries);upMsg(`<span title="${esc(why)}">${left} photo${left>1?'s':''} didn’t upload · retry in ${w}s</span></span><button class="link" onclick="retryNow()">Retry now</button><span hidden>`,done/ph.length*100,1);await new Promise(r=>{wake=r;setTimeout(r,w*1000);});wake=null;}}
  uploading=false;phRe();}
 // ---------- Tech Support ----------
