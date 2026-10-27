@@ -8,7 +8,8 @@ const EMP={
  '6789':{name:'Taylor',email:'taylor@techsourcedsolutions.com',rate:30,manager:true,to:'taylor@techsourcedsolutions.com',cc:'austin@techsourcedsolutions.com',weekReport:true,shiftPay:true},
  '0123':{name:'Mike Roberts',email:'Mike.Roberts@audioenhancement.com',rate:30,to:'Mike.Roberts@audioenhancement.com',cc:'austin@techsourcedsolutions.com',weekReport:true,shiftPay:true},
  '4826':{name:'Neelam',email:'ndeyoung50@outlook.com',rate:30,to:'ndeyoung50@outlook.com',cc:'austin@techsourcedsolutions.com',weekReport:true,shiftPay:true},
- '5917':{name:'Parker Bonn',email:'parkerjbonn@gmail.com',rate:20,to:'parkerjbonn@gmail.com',cc:'austin@techsourcedsolutions.com',weekReport:true,shiftPay:true}};
+ '5917':{name:'Parker Bonn',email:'parkerjbonn@gmail.com',rate:20,to:'parkerjbonn@gmail.com',cc:'austin@techsourcedsolutions.com',weekReport:true,shiftPay:true},
+ '2812':{name:'Callie Lassiter',rate:30,to:'austin@techsourcedsolutions.com',cc:'',weekReport:true,shiftPay:true}};// Callie: no email yet; notifications go to Austin only. When her email is added: email:'...',to:'...',cc:'austin@techsourcedsolutions.com'
 const JOBS=['WT Moore'];
 // Plan tier. 'paid' = receipt scanning (AI reads vendor/date/total/category) is on; 'free' = plain receipt photo only (server refuses scans). TSS's own deployment is 'paid'.
 const PLAN='paid';
@@ -142,7 +143,7 @@ function doPost(ev){let lock=null;try{
  if(p.action==='punch'){lock=LockService.getScriptLock();lock.waitLock(20000);const open=rows(p.code).find(r=>!r.outT),now=new Date();
   if(!open){if(JOBS.indexOf(p.job)<0)return out({error:'Pick a job'});
    sh().appendRow([p.code,e.name,p.job,now.toISOString(),'','']);
-   MailApp.sendEmail(e.to,'TSShourtracker: Clocked in - '+p.job,e.name+' clocked in\nJob: '+p.job+'\nTime: '+fmt(now),{cc:e.cc});}
+   MailApp.sendEmail(e.to||'austin@techsourcedsolutions.com','TSShourtracker: Clocked in - '+p.job,e.name+' clocked in\nJob: '+p.job+'\nTime: '+fmt(now),(e.cc?{cc:e.cc}:{}));}
   else{const h=(now-new Date(open.inT))/36e5,np=Number(p.photos||0);let pl='';if(np>0){try{pl='\nPhotos: '+np+' uploading to '+masterFolder(open.job).getUrl();}catch(x){pl='\nPhotos: '+np+' uploading';}}sh().getRange(open.row,5,1,2).setValues([[now.toISOString(),h.toFixed(4)]]);
-   MailApp.sendEmail(e.to,'TSShourtracker: Clocked out - '+open.job,e.name+' clocked out\nJob: '+open.job+'\nIn: '+fmt(open.inT)+'\nOut: '+fmt(now)+'\nShift hours: '+h.toFixed(2)+pl+(e.shiftPay?shiftPayReport(p.code,open.inT,h):'')+(e.weekReport?weekReport(p.code,open.inT):''),{cc:e.cc});}}
+   MailApp.sendEmail(e.to||'austin@techsourcedsolutions.com','TSShourtracker: Clocked out - '+open.job,e.name+' clocked out\nJob: '+open.job+'\nIn: '+fmt(open.inT)+'\nOut: '+fmt(now)+'\nShift hours: '+h.toFixed(2)+pl+(e.shiftPay?shiftPayReport(p.code,open.inT,h):'')+(e.weekReport?weekReport(p.code,open.inT):''),(e.cc?{cc:e.cc}:{}));}}
  return out(summary(p.code));}finally{if(lock)lock.releaseLock();}}
