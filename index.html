@@ -63,11 +63,11 @@ textarea{width:100%;min-height:96px;border:2px solid var(--line);border-radius:1
 .tabbar{position:sticky;top:calc(59px + env(safe-area-inset-top));z-index:4;margin:0 -16px;padding:10px 16px;background:rgba(244,246,251,.92);backdrop-filter:blur(12px)}.tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;background:#e2e8f0;border-radius:14px;padding:4px}.tabs button{height:42px;font-size:13px!important;border:0;border-radius:11px;background:transparent;white-space:nowrap;padding:0 4px;font:700 14px var(--f);color:var(--mute)}.tabs button span{margin-right:5px}.tabs button.on{background:#fff;color:var(--ink);box-shadow:var(--sh)}
 .mic{width:50px;height:50px;border:0;border-radius:14px;background:#f1f5f9;font-size:20px}.mic.on{background:#ef4444;animation:mp 1.2s infinite}@keyframes mp{0%{box-shadow:0 0 0 0 rgba(239,68,68,.55)}70%{box-shadow:0 0 0 12px rgba(239,68,68,0)}100%{box-shadow:0 0 0 0 rgba(239,68,68,0)}}.tools{display:grid;grid-template-columns:1fr 1fr 50px 1fr;gap:8px;margin-top:10px}.tools .btn{display:flex;align-items:center;justify-content:center;gap:4px;padding:0 6px;white-space:nowrap;font-size:15px;cursor:pointer}.tools .mic{width:auto}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.chips:empty{display:none}.chip a{color:var(--mute);text-decoration:none;margin-left:2px}.err-box{display:flex;align-items:center;gap:8px;margin-top:10px;padding:10px 12px;border-radius:14px;background:#fef2f2;color:#991b1b;font-size:14px;font-weight:600}</style></head><body>
-<header><div class="logo">TSS</div><div><b>Hour Tracker</b><small>TechSource Solutions</small></div><div class="sp"></div><button class="link" id="lo" style="display:none" onclick="location.reload()">Log out</button></header>
+<header><div class="logo">TSS</div><div><b>Hour Tracker</b><small>Tech Sourced Solutions</small></div><div class="sp"></div><button class="link" id="lo" style="display:none" onclick="location.reload()">Log out</button></header>
 <main id="m"></main><div id="toast"></div>
 <script>
 // ===== App version: bump on every release; open pages auto-reload when a newer one is live =====
-const APP_V='31';
+const APP_V='32';
 async function vCheck(){try{if(uploading||(typeof ck!=='undefined'&&ck.busy)||(typeof rcBusy!=='undefined'&&rcBusy)||(typeof rcPend!=='undefined'&&rcPend))return;const t=await (await fetch(location.pathname+'?cb='+Date.now(),{cache:'no-store'})).text(),v=(t.match(/APP_V='(\d+)'/)||[])[1];
  if(v&&v!==APP_V)location.replace(location.pathname+'?v='+v);}catch(e){}}
 addEventListener('load',vCheck);document.addEventListener('visibilitychange',()=>{if(!document.hidden)vCheck()});addEventListener('pageshow',e=>{if(e.persisted)vCheck()});
