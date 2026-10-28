@@ -10,7 +10,10 @@ const EMP={
  '4826':{name:'Neelam',email:'ndeyoung50@outlook.com',rate:30,to:'ndeyoung50@outlook.com',cc:'austin@techsourcedsolutions.com',weekReport:true,shiftPay:true},
  '5917':{name:'Parker Bonn',email:'parkerjbonn@gmail.com',rate:20,to:'parkerjbonn@gmail.com',cc:'austin@techsourcedsolutions.com',weekReport:true,shiftPay:true},
  '2812':{name:'Callie Lassiter',rate:30,to:'austin@techsourcedsolutions.com',cc:'',weekReport:true,shiftPay:true}};// Callie: no email yet; notifications go to Austin only. When her email is added: email:'...',to:'...',cc:'austin@techsourcedsolutions.com'
-const JOBS=['WT Moore','Ruediger'];
+const SEED_JOBS=['WT Moore','Ruediger'];// schools live on the Masters tab (col A); these are seeded if missing
+function jobsList(){const m=mastersSheet(),v=m.getDataRange().getValues().slice(1).map(r=>String(r[0]).trim()).filter(String);SEED_JOBS.forEach(j=>{if(v.indexOf(j)<0){masterFolder(j);v.push(j);}});return v;}
+function isJob(j){return jobsList().indexOf(j)>=0;}
+function addJob(name){name=cleanName(name).replace(/\s+/g,' ').slice(0,60);if(!name)return {error:'Type the school name'};const l=jobsList(),d=l.find(j=>j.toLowerCase()===name.toLowerCase());if(d)return {jobs:l,job:d,existed:true};masterFolder(name);return {jobs:jobsList(),job:name};}
 // Plan tier. 'paid' = receipt scanning (AI reads vendor/date/total/category) is on; 'free' = plain receipt photo only (server refuses scans). TSS's own deployment is 'paid'.
 const PLAN='paid';
 function sh(){const ss=SpreadsheetApp.getActive();let s=ss.getSheetByName('Punches');
@@ -22,7 +25,7 @@ function summary(code){const e=EMP[code],rs=rows(code),weeks={};
  rs.filter(r=>r.outT).forEach(r=>{const k=weekKey(r.inT);(weeks[k]=weeks[k]||{week:k,hours:0,shifts:[]});weeks[k].hours+=Number(r.hours);weeks[k].shifts.push({job:r.job,in:fmt(r.inT),out:fmt(r.outT),hours:+Number(r.hours).toFixed(2)});});
  const list=Object.values(weeks).sort((a,b)=>a.week<b.week?1:-1).map(w=>{const reg=Math.min(40,w.hours),ot=Math.max(0,w.hours-40);
   return {...w,hours:+w.hours.toFixed(2),regular:+reg.toFixed(2),overtime:+ot.toFixed(2),pay:+(reg*e.rate+ot*e.rate*1.5).toFixed(2)};});
- const open=rs.find(r=>!r.outT);return {name:e.name,rate:e.rate,jobs:JOBS,open:open?{job:open.job,in:fmt(open.inT),inIso:String(open.inT)}:null,weeks:list,manager:!!e.manager,plan:PLAN};}
+ const open=rs.find(r=>!r.outT);return {name:e.name,rate:e.rate,jobs:jobsList(),open:open?{job:open.job,in:fmt(open.inT),inIso:String(open.inT)}:null,weeks:list,manager:!!e.manager,plan:PLAN};}
 
 // ===== Take-home ESTIMATE settings (easy to change) =====
 const TAX={
@@ -54,14 +57,14 @@ function masterFolder(job){const m=mastersSheet(),v=m.getDataRange().getValues()
   const f=sub(sheetParent(),v[i][2]||job);m.getRange(i+1,2,1,2).setValues([[f.getId(),f.getName()]]);return f;}
  const f=sub(sheetParent(),job);m.appendRow([job,f.getId(),f.getName()]);return f;}
 function cleanName(n){return String(n||'').replace(/[\\/:*?"<>|]/g,'').trim().slice(0,80);}
-function renameMaster(job,name){if(JOBS.indexOf(job)<0)return {error:'Unknown job'};name=cleanName(name);if(!name)return {error:'Enter a name'};
+function renameMaster(job,name){if(!isJob(job))return {error:'Unknown job'};name=cleanName(name);if(!name)return {error:'Enter a name'};
  const f=masterFolder(job);f.setName(name);const m=mastersSheet(),v=m.getDataRange().getValues();
  for(let i=1;i<v.length;i++)if(v[i][0]===job)m.getRange(i+1,3).setValue(name);return {ok:true,master:name,url:f.getUrl()};}
 // Photo folder under the job: room number '204' -> 'Room 204' (unchanged); custom name sent as '~Gym' -> 'Gym'. Strips / \ control chars and Drive-unsafe chars, max 40.
 function photoFolderName_(raw){const s=String(raw==null?'':raw);if(s.charAt(0)==='~'){const n=s.slice(1).replace(/[\u0000-\u001f\u007f\/\\]/g,'').replace(/[:*?"<>|`']/g,'').replace(/\s+/g,' ').trim().slice(0,40);return n||'Unnamed';}let v=s.trim().replace(/^(room|rm)\.?\s*/i,'').replace(/[^\w .-]/g,'').slice(0,40);if(/^\d+$/.test(v))v=String(+v);return 'Room '+(v||'0');}
 function sessionRow(code,inIso){return rows(code).find(r=>String(r.inT)===String(inIso));}
 function uploadPhoto(p,e){if(!p.data)return {error:'Photo data missing'};const r=sessionRow(p.code,p.inIso);// session row may be gone (deleted/edited shift): still save the photo, don't strand it
- const job=r?r.job:(JOBS.indexOf(p.job)>=0?p.job:JOBS[0]);
+ const job=r?r.job:(isJob(p.job)?p.job:jobsList()[0]);
  const folder=photoFolderName_(p.room),sf=masterFolder(job),rf=sub(sf,folder);
  const fn=p.fname?cleanName(p.fname):'';// checklist: custom file name, retake replaces old copy
  const name=fn?fn+'.jpg':folder+' '+Utilities.formatDate(new Date(p.takenAt),TZ,'yyyy-MM-dd HH-mm-ss')+(p.seq?' '+p.seq:'')+'.jpg';
@@ -128,7 +131,7 @@ function managerData_(){
  const weeks={};P.filter(r=>r.outT).forEach(r=>{const k=weekKey(r.inT);if(k!==thisW&&k!==prevW)return;const id=r.code+'|'+k;(weeks[id]=weeks[id]||{code:r.code,week:k,hours:0}).hours+=r.hours;});
  const totals=Object.keys(EMP).map(c=>{const x=EMP[c],f=k=>{const h=(weeks[c+'|'+k]||{hours:0}).hours,reg=Math.min(40,h),ot=Math.max(0,h-40);return {hours:+h.toFixed(2),overtime:+ot.toFixed(2),pay:+(reg*x.rate+ot*x.rate*1.5).toFixed(2)};};return {code:c,name:x.name,rate:x.rate,thisWeek:f(thisW),lastWeek:f(prevW)};});
  const shifts=P.filter(r=>new Date(r.inT)>=cut).map(r=>({name:r.name,code:r.code,job:r.job,in:fmt(r.inT),inIso:String(r.inT),out:r.outT?fmt(r.outT):'',hours:+r.hours.toFixed(2),pay:+(r.hours*((EMP[r.code]||{}).rate||0)).toFixed(2),photos:r.photos,folder:r.folder})).reverse();
- const photos=[],t0=Date.now(),cap=()=>photos.length<200&&Date.now()-t0<8000;try{JOBS.forEach(j=>{const mf=masterFolder(j),fs=mf.getFolders();while(fs.hasNext()&&cap()){const rf=fs.next(),it=rf.getFiles();while(it.hasNext()&&cap()){const f=it.next(),d=f.getDateCreated();if(d>=cut)photos.push({job:j,room:rf.getName(),name:f.getName(),url:f.getUrl(),time:Utilities.formatDate(d,TZ,'yyyy-MM-dd HH:mm'),checklist:f.getName().indexOf(rf.getName()+' ')!==0});}}});}catch(x){}
+ const photos=[],t0=Date.now(),cap=()=>photos.length<200&&Date.now()-t0<8000;try{jobsList().forEach(j=>{const mf=masterFolder(j),fs=mf.getFolders();while(fs.hasNext()&&cap()){const rf=fs.next(),it=rf.getFiles();while(it.hasNext()&&cap()){const f=it.next(),d=f.getDateCreated();if(d>=cut)photos.push({job:j,room:rf.getName(),name:f.getName(),url:f.getUrl(),time:Utilities.formatDate(d,TZ,'yyyy-MM-dd HH:mm'),checklist:f.getName().indexOf(rf.getName()+' ')!==0});}}});}catch(x){}
  photos.sort((a,b)=>a.time<b.time?1:-1);
  const receipts=tab('Expenses').map(r=>({time:ts(r[0]),code:String(r[1]),name:r[2],note:r[3],url:r[4],vendor:r[5]||'',date:r[6] instanceof Date?Utilities.formatDate(r[6],TZ,'yyyy-MM-dd'):String(r[6]||''),total:r[7]===''?null:r[7],category:r[8]||''})).reverse().slice(0,200);
  const support=tab('Support').map(r=>({time:ts(r[0]),code:String(r[1]),name:r[2],question:r[3],photos:r[4],answer:r[5],offTopic:!!r[6]})).reverse().slice(0,200);
@@ -138,12 +141,13 @@ function doPost(ev){let lock=null;try{
  const p=JSON.parse(ev.postData.contents),e=EMP[p.code];if(!e)return out({error:'Invalid code'});
  if(p.action==='manager')return out(managerData(e));// manager portal: read-only, server-side manager check
  if(p.action==='master')return out(p.name?renameMaster(p.job,p.name):(()=>{const f=masterFolder(p.job);return {master:f.getName(),url:f.getUrl()};})());
+ if(p.action==='addjob'){lock=LockService.getScriptLock();lock.waitLock(20000);return out(addJob(p.name));}
  if(p.action==='ask')return out(ask(p,e));
  if(p.action==='photo')return out(uploadPhoto(p,e));
  if(p.action==='scanreceipt')return out(scanReceipt(p,e));
  if(p.action==='receipt')return out(receipt(p,e));
  if(p.action==='punch'){lock=LockService.getScriptLock();lock.waitLock(20000);const open=rows(p.code).find(r=>!r.outT),now=new Date();
-  if(!open){if(JOBS.indexOf(p.job)<0)return out({error:'Pick a job'});
+  if(!open){if(!isJob(p.job))return out({error:'Pick a school'});
    sh().appendRow([p.code,e.name,p.job,now.toISOString(),'','']);
    MailApp.sendEmail(e.to||'austin@techsourcedsolutions.com','TSShourtracker: Clocked in - '+p.job,e.name+' clocked in\nJob: '+p.job+'\nTime: '+fmt(now),(e.cc?{cc:e.cc}:{}));}
   else{const h=(now-new Date(open.inT))/36e5,np=Number(p.photos||0);let pl='';if(np>0){try{pl='\nPhotos: '+np+' uploading to '+masterFolder(open.job).getUrl();}catch(x){pl='\nPhotos: '+np+' uploading';}}sh().getRange(open.row,5,1,2).setValues([[now.toISOString(),h.toFixed(4)]]);
