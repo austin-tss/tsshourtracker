@@ -58,7 +58,7 @@ function renameMaster(job,name){if(JOBS.indexOf(job)<0)return {error:'Unknown jo
  const f=masterFolder(job);f.setName(name);const m=mastersSheet(),v=m.getDataRange().getValues();
  for(let i=1;i<v.length;i++)if(v[i][0]===job)m.getRange(i+1,3).setValue(name);return {ok:true,master:name,url:f.getUrl()};}
 // Photo folder under the job: room number '204' -> 'Room 204' (unchanged); custom name sent as '~Gym' -> 'Gym'. Strips / \ control chars and Drive-unsafe chars, max 40.
-function photoFolderName_(raw){const s=String(raw==null?'':raw);if(s.charAt(0)==='~'){const n=s.slice(1).replace(/[\u0000-\u001f\u007f\/\\]/g,'').replace(/[:*?"<>|`']/g,'').replace(/\s+/g,' ').trim().slice(0,40);return n||'Unnamed';}return 'Room '+(s.replace(/[^\w .-]/g,'').slice(0,40)||'0');}
+function photoFolderName_(raw){const s=String(raw==null?'':raw);if(s.charAt(0)==='~'){const n=s.slice(1).replace(/[\u0000-\u001f\u007f\/\\]/g,'').replace(/[:*?"<>|`']/g,'').replace(/\s+/g,' ').trim().slice(0,40);return n||'Unnamed';}let v=s.trim().replace(/^(room|rm)\.?\s*/i,'').replace(/[^\w .-]/g,'').slice(0,40);if(/^\d+$/.test(v))v=String(+v);return 'Room '+(v||'0');}
 function sessionRow(code,inIso){return rows(code).find(r=>String(r.inT)===String(inIso));}
 function uploadPhoto(p,e){if(!p.data)return {error:'Photo data missing'};const r=sessionRow(p.code,p.inIso);// session row may be gone (deleted/edited shift): still save the photo, don't strand it
  const job=r?r.job:(JOBS.indexOf(p.job)>=0?p.job:JOBS[0]);

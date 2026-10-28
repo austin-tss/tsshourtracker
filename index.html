@@ -68,7 +68,7 @@ textarea{width:100%;min-height:96px;border:2px solid var(--line);border-radius:1
 <main id="m"></main><div id="toast"></div>
 <script>
 // ===== App version: bump on every release; open pages auto-reload when a newer one is live =====
-const APP_V='33';
+const APP_V='34';
 async function vCheck(){try{if(uploading||(typeof ck!=='undefined'&&ck.busy)||(typeof rcBusy!=='undefined'&&rcBusy)||(typeof rcPend!=='undefined'&&rcPend))return;const t=await (await fetch(location.pathname+'?cb='+Date.now(),{cache:'no-store'})).text(),v=(t.match(/APP_V='(\d+)'/)||[])[1];
  if(v&&v!==APP_V)location.replace(location.pathname+'?v='+v);}catch(e){}}
 addEventListener('load',vCheck);document.addEventListener('visibilitychange',()=>{if(!document.hidden)vCheck()});addEventListener('pageshow',e=>{if(e.persisted)vCheck()});
@@ -147,15 +147,16 @@ async function rooms(){const r=await tx('rooms','readonly',s=>s.get(sessKey()));
 // Photo folders: room numbers are stored as-is ('204' -> Drive 'Room 204'); custom names are stored with a '~' prefix ('~Gym' -> Drive 'Gym').
 let fmode=localStorage.fmode||'room';
 function cleanFolder(s){return String(s||'').replace(/[\u0000-\u001f\u007f\/\\]/g,'').replace(/[:*?"<>|`']/g,'').replace(/\s+/g,' ').trim().slice(0,40);}
+function roomNum(v){v=String(v||'').trim().replace(/^(room|rm)\.?\s*/i,'').replace(/[^\w .-]/g,'');return /^\d+$/.test(v)?String(+v):v;}// '012','Rm 12','Room 12' -> '12' so one folder per room
 function rShort(r){return r&&r[0]==='~'?r.slice(1):r;}// used in checklist file names: '<item> (204)' / '<item> (Gym)'
 function rLabel(r){return r&&r[0]==='~'?r.slice(1):'Room '+r;}// Drive folder name / screen title
 function setFmode(v){fmode=v;localStorage.fmode=v;renderRooms();}
-async function addRoom(){const raw=$('roomNo').value;const n=fmode==='custom'?(cleanFolder(raw)?'~'+cleanFolder(raw):''):raw.trim().replace(/[^\w .-]/g,'');if(!n)return toast(fmode==='custom'?'Type the folder name':'Enter a room number',1);const l=await rooms();if(!l.includes(n))l.push(n);await tx('rooms','readwrite',s=>s.put({k:sessKey(),list:l}));openRoom(n,1);}// typed room: always ask checklist type
+async function addRoom(){const raw=$('roomNo').value;const n=fmode==='custom'?(cleanFolder(raw)?'~'+cleanFolder(raw):''):roomNum(raw);if(!n)return toast(fmode==='custom'?'Type the folder name':'Enter a room number',1);const l=await rooms();if(!l.includes(n))l.push(n);await tx('rooms','readwrite',s=>s.put({k:sessKey(),list:l}));openRoom(n,1);}// typed room: always ask checklist type
 async function renameM(){const n=prompt('Drive folder name for '+S.open.job+' (e.g. the school):',mname);if(!n)return;try{const r=await call({action:'master',code,job:S.open.job,name:n});mname=r.master;$('mname').textContent=mname;toast('Folder renamed ✓');}catch(e){toast(e.message,1);}}
 let cur=null;
 async function renderRooms(){const el=$('rooms');if(!el||!S.open)return;if(!mname){try{mname=(await call({action:'master',code,job:S.open.job})).master;}catch(e){mname=S.open.job;}}
  const ph=(await allPhotos()).filter(p=>p.inIso===S.open.inIso),l=await rooms();
- el.innerHTML=`<div class="row"><h2 style="font-size:18px">Photo folders</h2><button class="chip" style="border:0" onclick="renameM()">📁 <span id="mname">${esc(mname)}</span> ✎</button></div><div class="sub" style="margin:4px 0 12px">Pick a room number or type any folder name — each photo uploads to Drive right away.</div>
+ el.innerHTML=`<div class="row"><h2 style="font-size:18px">Photo folders</h2><button class="chip" style="border:0" onclick="renameM()">🏫 ${esc(S.open.job)} › 📁 <span id="mname">${esc(mname)}</span> ✎</button></div><div class="sub" style="margin:4px 0 12px">Pick a room number or type any folder name — each photo uploads to Drive right away.</div>
  <div style="display:flex;gap:6px;background:#f1f5f9;border-radius:14px;padding:4px;margin-bottom:10px">${[['room','🚪 Room #'],['custom','✏️ Custom name']].map(([k,t])=>`<button onclick="setFmode('${k}')" style="flex:1;height:40px;border:0;border-radius:11px;font:700 14px var(--f);background:${fmode===k?'#fff':'transparent'};color:${fmode===k?'var(--ink)':'#64748b'};box-shadow:${fmode===k?'0 1px 3px rgba(15,23,42,.12)':'none'}">${t}</button>`).join('')}</div>
  <div class="add" style="margin-top:0"><input id="roomNo" class="field" style="margin:0" ${fmode==='custom'?'inputmode="text" maxlength="40" autocapitalize="words" placeholder="Folder name, e.g. Gym"':'inputmode="numeric" placeholder="Room number"'} onkeydown="if(event.key==='Enter')addRoom()"><button class="btn" onclick="addRoom()">Add</button></div>
  <div class="tiles">${l.map(r=>{const n=ph.filter(p=>p.room===r).length;return `<button class="tile empty" onclick="openRoom('${esc(r)}')">${n?'🗂️':'📷'}<span class="lbl" style="position:absolute"><b>${esc(rLabel(r))}</b>${n?n+' photo'+(n>1?'s':'')+' saved':'No photos yet'}</span></button>`;}).join('')}</div>${l.length?'':'<div class="empty-st"><div class="ei">🚪</div><b>No folders yet</b>Add a room number or a custom name to start taking photos.</div>'}`;}
@@ -181,7 +182,7 @@ function withTO(p,ms,msg){return Promise.race([p,new Promise((_,no)=>setTimeout(
 async function decodeImg(f){const u=URL.createObjectURL(f);try{const im=new Image();im.src=u;await new Promise((ok,no)=>{im.onload=ok;im.onerror=()=>no(Error('This photo format could not be opened'));});if(!im.naturalWidth)throw Error('Empty photo');return im;}finally{setTimeout(()=>URL.revokeObjectURL(u),30000);}}
 async function shrink(f,mx,q){try{const im=await withTO(decodeImg(f),20000,'Opening the photo timed out');return await toJpeg(im,im.naturalWidth,im.naturalHeight,mx,q);}catch(e1){try{const b=await createImageBitmap(f);return await toJpeg(b,b.width,b.height,mx,q);}catch(e2){throw e1;}}}
 async function save(blob){if(!S||!S.open)throw Error('You are not clocked in');if(cur==null||cur==='')throw Error('No folder selected - go back and pick the folder');const data=await b64(blob);if(!data)throw Error('Photo came out empty');// stored as base64 text: iOS Safari can fail to store Blobs in IndexedDB
- await tx('photos','readwrite',s=>s.add({code,inIso:S.open.inIso,room:cur,takenAt:new Date().toISOString(),b64:data}));const n=(await allPhotos()).filter(p=>p.inIso===S.open.inIso&&p.room===cur).length;toast('Photo '+n+' saved · uploading');openRoom(cur);uploadAll();}
+ await tx('photos','readwrite',s=>s.add({code,inIso:S.open.inIso,job:S.open.job,room:cur,takenAt:new Date().toISOString(),b64:data}));const n=(await allPhotos()).filter(p=>p.inIso===S.open.inIso&&p.room===cur).length;toast('Photo '+n+' saved · uploading');openRoom(cur);uploadAll();}
 function phMsg(t,err){const e=$('phmsg');if(e){e.textContent=t;e.style.color=err?'#dc2626':'#64748b';e.style.display=t?'':'none';}}
 async function fileShot(i){const f=i.files&&i.files[0];i.value='';// reset first so picking again always fires change
  if(!f){phMsg('No photo came back from the camera. Tap Take Photo again.',1);return toast('No photo received - try again',1);}
@@ -199,7 +200,7 @@ let wake=null;function retryNow(){if(wake)wake();else uploadAll();}
 async function uploadAll(){if(uploading)return;uploading=true;let tries=0;const pend=p=>p.code===code&&!p.up&&(p.b64||p.blob);// upload right away, incl. the open shift (was deferred to clock-out)
  while(true){const ph=(await allPhotos()).filter(pend);if(!ph.length){if(tries){upMsg('All photos uploaded to Drive',100);toast('Photos uploaded ✓');setTimeout(()=>upMsg(''),4000);}break;}
   let done=0,why='';for(const p of ph){upMsg(`Uploading photos ${done}/${ph.length} · keep this open`,done/ph.length*100);
-   try{await call({action:'photo',code,inIso:p.inIso,room:p.room,takenAt:p.takenAt,seq:p.id,job:S&&S.open?S.open.job:(S&&S.jobs?S.jobs[0]:undefined),data:p.b64||await b64(p.blob)},90000);await tx('photos','readwrite',s=>s.put({...p,blob:null,b64:null,up:1,err:''}));done++;}catch(e){why=e.message;await tx('photos','readwrite',s=>s.put({...p,err:why||'failed'}));}phRe();}
+   try{await call({action:'photo',code,inIso:p.inIso,room:p.room,takenAt:p.takenAt,seq:p.id,job:p.job||(S&&S.open?S.open.job:(job||(S&&S.jobs?S.jobs[0]:undefined))),data:p.b64||await b64(p.blob)},90000);await tx('photos','readwrite',s=>s.put({...p,blob:null,b64:null,up:1,err:''}));done++;}catch(e){why=e.message;await tx('photos','readwrite',s=>s.put({...p,err:why||'failed'}));}phRe();}
   tries++;const left=(await allPhotos()).filter(pend).length;if(left){const w=Math.min(60,5*tries);upMsg(`<span title="${esc(why)}">${left} photo${left>1?'s':''} didn’t upload · retry in ${w}s</span></span><button class="link" onclick="retryNow()">Retry now</button><span hidden>`,done/ph.length*100,1);await new Promise(r=>{wake=r;setTimeout(r,w*1000);});wake=null;}}
  uploading=false;phRe();}
 // ---------- Tech Support ----------
@@ -256,12 +257,12 @@ function checklistView(){clearInterval(tick);const items=CHECKLISTS[ck.tpl]||[],
  else{h=`<div class="row"><div><div class="mute">Room ${esc(ck.room)} · <a href="#" onclick="ckRoom();return false" style="color:#2563eb">Change</a></div><h2 style="font-size:18px">${esc(ck.tpl)} · <a href="#" onclick="ck.tpl='';ckSave();checklistView();return false" style="font-size:13px;font-weight:600;color:#2563eb">Change</a></h2></div><span class="chip" style="${n===items.length?'background:#dcfce7;color:#15803d':''}">${n}/${items.length}</span></div>
   ${items.map((it,i)=>{const d=ck.done[ckKey(it)],b=ck.busy===it;return `<div style="display:flex;align-items:center;gap:12px;margin-top:10px;padding:14px;border-radius:16px;background:${d?'#f0fdf4':'#fff'};border:1px solid ${d?'#86efac':'#e2e8f0'}"><span style="font-size:24px">${d?'✅':'⬜️'}</span><span style="flex:1"><b style="display:block;font-size:15px">${esc(it)}</b><span class="mute" style="font-size:12px">${esc(it)} (${esc(ck.room)}).jpg</span></span><label style="flex:none;padding:10px 12px;border-radius:12px;font-weight:700;font-size:14px;background:${d?'#fff':'linear-gradient(135deg,var(--brand),var(--brand2))'};color:${d?'#2563eb':'#fff'};border:1px solid #dbeafe">${b?'<span class="spin"></span>':d?'Retake':'📷 Photo'}<input type="file" accept="image/*" capture="environment" class="fi" ${ck.busy?'disabled':''} onchange="ckShot(this,${i})"></label></div>`}).join('')}<div class="dn">🔒 Photos upload automatically to TSS Google Drive · not saved to your phone</div>`;}
  m.innerHTML=tabsHtml()+head+h+`</div>`;if(!ck.room||ck.edit){const r=$('ckroom');r&&r.focus();}}
-function ckNext(){const r=$('ckroom'),v=(r?r.value:'').trim();if(!v){r&&r.focus();toast('Type the room number first',1);return}if(v!==ck.room)ck.tpl='';ck.room=v;ck.edit=false;ckSave();checklistView();}
+function ckNext(){const r=$('ckroom'),v=roomNum(r?r.value:'');if(!v){r&&r.focus();toast('Type the room number first',1);return}if(v!==ck.room)ck.tpl='';ck.room=v;ck.edit=false;ckSave();checklistView();}
 function ckRoom(){ck.edit=true;checklistView();}
 function ckPick(i){ck.tpl=Object.keys(CHECKLISTS)[i];ckSave();checklistView();}
 function ckRe(){tab==='clock'&&$('rooms')?roomCk(ck.room,ck.tpl):checklistView()}
 async function ckShot(inp,i){const f=inp.files[0];inp.value='';const it=(CHECKLISTS[ck.tpl]||[])[i];if(!f||!it||ck.busy)return;const room=ck.room;ck.busy=it;ckRe();
- try{const jp=await shrink(f);const r=await call({action:'photo',code,inIso:S&&S.open?S.open.inIso:'',room,takenAt:new Date().toISOString(),seq:Date.now(),job:S&&S.open?S.open.job:(S&&S.jobs?S.jobs[0]:undefined),fname:it+' ('+rShort(room)+')',data:await b64(jp)},90000);
+ try{const jp=await shrink(f);const r=await call({action:'photo',code,inIso:S&&S.open?S.open.inIso:'',room,takenAt:new Date().toISOString(),seq:Date.now(),job:S&&S.open?S.open.job:(job||(S&&S.jobs?S.jobs[0]:undefined)),fname:it+' ('+rShort(room)+')',data:await b64(jp)},90000);
   if(r&&r.error)throw new Error(r.error);if(r&&!r.name)alert('Uploaded, but the server is on an older version so the file name may not match. Tell Austin.');
   ck.done[ck.tpl+'|'+room+'|'+it]=1;ckSave();}catch(e){alert('Upload failed: '+e.message+' — try again.');}
  ck.busy='';ckRe();}
