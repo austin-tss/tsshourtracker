@@ -68,7 +68,7 @@ textarea{width:100%;min-height:96px;border:2px solid var(--line);border-radius:1
 <main id="m"></main><div id="toast"></div>
 <script>
 // ===== App version: bump on every release; open pages auto-reload when a newer one is live =====
-const APP_V='35';
+const APP_V='36';
 async function vCheck(){try{if(uploading||(typeof ck!=='undefined'&&ck.busy)||(typeof rcBusy!=='undefined'&&rcBusy)||(typeof rcPend!=='undefined'&&rcPend))return;const t=await (await fetch(location.pathname+'?cb='+Date.now(),{cache:'no-store'})).text(),v=(t.match(/APP_V='(\d+)'/)||[])[1];
  if(v&&v!==APP_V)location.replace(location.pathname+'?v='+v);}catch(e){}}
 addEventListener('load',vCheck);document.addEventListener('visibilitychange',()=>{if(!document.hidden)vCheck()});addEventListener('pageshow',e=>{if(e.persisted)vCheck()});
@@ -153,6 +153,7 @@ function schoolPicker(){const top=`<div style="display:flex;gap:8px;margin:8px 0
  if(!jpOpen)return top;return top+`<div style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;box-shadow:var(--sh);padding:8px;margin-bottom:16px"><input id="jpq" class="field" style="margin:0 0 6px" placeholder="🔍 Search schools" autocomplete="off" oninput="jpList()"><div id="jpl" style="max-height:260px;overflow:auto">${jpRows('')}</div></div>`;}
 function jpRows(q){q=q.trim().toLowerCase();const l=S.jobs.filter(j=>j.toLowerCase().includes(q));return l.length?l.map(j=>`<button onclick="pickSchool(this.dataset.j)" data-j="${esc(j)}" style="display:flex;width:100%;align-items:center;justify-content:space-between;height:50px;padding:0 12px;border:0;border-radius:10px;background:${j===job?'#eff6ff':'transparent'};font:600 16px var(--f);color:var(--ink);text-align:left">🏫 ${esc(j)}${j===job?'<span style="color:#2563eb">✓</span>':''}</button>`).join(''):`<div class="mute" style="padding:12px">No school matches. Tap + to add it.</div>`;}
 function jpList(){const q=$('jpq'),l=$('jpl');if(q&&l)l.innerHTML=jpRows(q.value);}
+function schoolLocked(){alert('You are clocked in at '+(S&&S.open?S.open.job:'this school')+'.\n\nTo work at a different school, clock out first, then pick the new school and clock back in. This keeps labor cost tracked per job.');}
 function pickSchool(j){job=j;jpOpen=false;render();}
 async function addSchool(){const q=$('jpq');let n=prompt('New school name:',q&&q.value?q.value.trim():'');if(n==null)return;n=n.trim().replace(/\s+/g,' ');if(!n)return toast('Type the school name',1);
  const dup=S.jobs.find(j=>j.toLowerCase()===n.toLowerCase());if(dup){job=dup;jpOpen=false;render();return toast(dup+' is already in the list');}
@@ -165,7 +166,7 @@ async function renameM(){const n=prompt('Drive folder name for '+S.open.job+' (e
 let cur=null;
 async function renderRooms(){const el=$('rooms');if(!el||!S.open)return;if(!mname){try{mname=(await call({action:'master',code,job:S.open.job})).master;}catch(e){mname=S.open.job;}}
  const ph=(await allPhotos()).filter(p=>p.inIso===S.open.inIso),l=await rooms();
- el.innerHTML=`<div class="row"><h2 style="font-size:18px">Photo folders</h2><button class="chip" style="border:0" onclick="renameM()">🏫 ${esc(S.open.job)} › 📁 <span id="mname">${esc(mname)}</span> ✎</button></div><div class="sub" style="margin:4px 0 12px">Pick a room number or type any folder name — each photo uploads to Drive right away.</div>
+ el.innerHTML=`<div class="row"><h2 style="font-size:18px">Photo folders</h2><span class="chip" style="border:0"><span onclick="schoolLocked()" style="cursor:pointer">🏫 ${esc(S.open.job)} 🔒</span> › <span onclick="renameM()" style="cursor:pointer">📁 <span id="mname">${esc(mname)}</span> ✎</span></span></div><div class="sub" style="margin:4px 0 12px">Pick a room number or type any folder name — each photo uploads to Drive right away.</div>
  <div style="display:flex;gap:6px;background:#f1f5f9;border-radius:14px;padding:4px;margin-bottom:10px">${[['room','🚪 Room #'],['custom','✏️ Custom name']].map(([k,t])=>`<button onclick="setFmode('${k}')" style="flex:1;height:40px;border:0;border-radius:11px;font:700 14px var(--f);background:${fmode===k?'#fff':'transparent'};color:${fmode===k?'var(--ink)':'#64748b'};box-shadow:${fmode===k?'0 1px 3px rgba(15,23,42,.12)':'none'}">${t}</button>`).join('')}</div>
  <div class="add" style="margin-top:0"><input id="roomNo" class="field" style="margin:0" ${fmode==='custom'?'inputmode="text" maxlength="40" autocapitalize="words" placeholder="Folder name, e.g. Gym"':'inputmode="numeric" placeholder="Room number"'} onkeydown="if(event.key==='Enter')addRoom()"><button class="btn" onclick="addRoom()">Add</button></div>
  <div class="tiles">${l.map(r=>{const n=ph.filter(p=>p.room===r).length;return `<button class="tile empty" onclick="openRoom('${esc(r)}')">${n?'🗂️':'📷'}<span class="lbl" style="position:absolute"><b>${esc(rLabel(r))}</b>${n?n+' photo'+(n>1?'s':'')+' saved':'No photos yet'}</span></button>`;}).join('')}</div>${l.length?'':'<div class="empty-st"><div class="ei">🚪</div><b>No folders yet</b>Add a room number or a custom name to start taking photos.</div>'}`;}
