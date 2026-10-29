@@ -68,7 +68,7 @@ textarea{width:100%;min-height:96px;border:2px solid var(--line);border-radius:1
 <main id="m"></main><div id="toast"></div>
 <script>
 // ===== App version: bump on every release; open pages auto-reload when a newer one is live =====
-const APP_V='38';
+const APP_V='39';
 async function vCheck(){try{if(uploading||(typeof ck!=='undefined'&&ck.busy)||(typeof rcBusy!=='undefined'&&rcBusy)||(typeof rcPend!=='undefined'&&rcPend))return;const t=await (await fetch(location.pathname+'?cb='+Date.now(),{cache:'no-store'})).text(),v=(t.match(/APP_V='(\d+)'/)||[])[1];
  if(v&&v!==APP_V)location.replace(location.pathname+'?v='+v);}catch(e){}}
 addEventListener('load',vCheck);document.addEventListener('visibilitychange',()=>{if(!document.hidden)vCheck()});addEventListener('pageshow',e=>{if(e.persisted)vCheck()});
@@ -108,7 +108,7 @@ async function call(body,ms){if(MOCK)return mock(body);const ac=new AbortControl
 function mock(b){const t=new Date(Date.now()-(2*3600+17*60)*1000).toISOString();if(b.action==='master')return{master:'WT Moore'};if(b.action==='addjob')return{jobs:['WT Moore','Ruediger',b.name],job:b.name};if(b.action==='photo')return{ok:true};if(b.action==='scanreceipt')return{ok:true,readable:true,vendor:'HOFER KG',date:'2024-03-25',total:22.41,category:'Meals'};if(b.action==='receipt')return{ok:true,url:'#'};
  return{plan:new URLSearchParams(location.search).get('plan')||'paid',name:'William Griffin',rate:30,jobs:['WT Moore','Ruediger'],open:new URLSearchParams(location.search).has('out')?null:{job:'WT Moore',in:'Sat Oct 24, 7:02 AM ET',inIso:t},weeks:[{week:weekNow(),hours:31.5,regular:31.5,overtime:0,pay:945,shifts:[{job:'WT Moore',in:'Fri Oct 23, 7:00 AM ET',out:'Fri Oct 23, 3:30 PM ET',hours:8.5}]}]};}
 function weekNow(){const p=Object.fromEntries(new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit',weekday:'short'}).formatToParts(new Date()).map(x=>[x.type,x.value]));
- const d=new Date(Date.UTC(+p.year,p.month-1,+p.day));const back=(['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].indexOf(p.weekday));d.setUTCDate(d.getUTCDate()-back);return d.toISOString().slice(0,10);}
+ const d=new Date(Date.UTC(+p.year,p.month-1,+p.day));const back=(['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].indexOf(p.weekday));d.setUTCDate(d.getUTCDate()-back);return d.toISOString().slice(0,10);}
 // ---------- Login keypad ----------
 function loginView(){m.innerHTML=`<div class="card" style="text-align:center;padding:28px 20px"><h2>Welcome back</h2><div class="mute">Enter your employee code</div>
 <div class="dots" id="dots">${'<i></i>'.repeat(4)}</div><div class="pad">${[1,2,3,4,5,6,7,8,9].map(n=>`<button onclick="key('${n}')">${n}</button>`).join('')}
@@ -130,7 +130,7 @@ function render(){clearInterval(tick);const first=S.name.split(' ')[0];const w=S
  else{if(!job||S.jobs.indexOf(job)<0)job=S.jobs[0];h+=`<div class="mute" style="margin-top:14px">Choose your school</div>${schoolPicker()}
   <button class="big in" id="pb" onclick="punch()">Clock in</button></div>`;}
  const hrs=w?w.hours:0,pct=Math.min(100,hrs/40*100);
- h+=`<div class="card"><div class="row"><h2 style="font-size:17px">This week</h2><span class="mute">Mon–Sun</span></div><div class="stats"><div class="stat"><b>${hrs.toFixed(1)}</b><small>hours</small></div><div class="stat"><b>${(w?w.overtime:0).toFixed(1)}</b><small>overtime</small></div><div class="stat"><b>$${(w?w.pay:0).toFixed(0)}</b><small>gross pay</small></div></div>
+ h+=`<div class="card"><div class="row"><h2 style="font-size:17px">This week</h2><span class="mute">Sun–Sat</span></div><div class="stats"><div class="stat"><b>${hrs.toFixed(1)}</b><small>hours</small></div><div class="stat"><b>${(w?w.overtime:0).toFixed(1)}</b><small>overtime</small></div><div class="stat"><b>$${(w?w.pay:0).toFixed(0)}</b><small>gross pay</small></div></div>
  <div class="bar ${hrs>40?'ot':''}"><i style="width:0" data-w="${pct}"></i></div><div class="row mute" style="margin-top:6px;font-size:13px"><span>${hrs>=40?'Overtime pays 1.5× now':(40-hrs).toFixed(1)+' h to overtime'}</span><span>40 h</span></div></div>`;
  if(S.weeks.length)h+=`<div class="card"><details><summary class="row">History <span class="mute">${S.weeks.length} week${S.weeks.length>1?'s':''} ▾</span></summary>${S.weeks.map(x=>`<div style="margin-top:14px"><div class="row"><b>Week of ${x.week}</b><b>$${x.pay.toFixed(2)}</b></div><div class="mute" style="font-size:13px">${x.hours} h · reg ${x.regular} · OT ${x.overtime}</div>${x.shifts.map(s=>`<div class="shift"><span>${esc(s.job)}<br><span class="mute">${esc(s.in)} → ${esc(s.out.replace(/^\w+ \w+ \d+, /,''))}</span></span><b>${s.hours} h</b></div>`).join('')}</div>`).join('')}</details></div>`;
  m.innerHTML=h;requestAnimationFrame(()=>document.querySelectorAll('.bar i').forEach(b=>b.style.width=b.dataset.w+'%'));

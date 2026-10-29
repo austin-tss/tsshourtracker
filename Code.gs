@@ -20,7 +20,7 @@ function sh(){const ss=SpreadsheetApp.getActive();let s=ss.getSheetByName('Punch
  if(!s){s=ss.insertSheet('Punches');s.appendRow(['code','name','job','in_iso','out_iso','hours','photos','photo_folder']);}return s;}
 function rows(code){return sh().getDataRange().getValues().slice(1).map((r,i)=>({row:i+2,code:String(r[0]),name:r[1],job:r[2],inT:r[3],outT:r[4],hours:r[5]})).filter(r=>r.code===code);}
 function fmt(d){return Utilities.formatDate(new Date(d),TZ,'EEE MMM d, h:mm a')+' ET';}
-function weekKey(d){const day=Number(Utilities.formatDate(new Date(d),TZ,'u'));const t=new Date(new Date(d).getTime()-(day-1)*864e5);return Utilities.formatDate(t,TZ,'yyyy-MM-dd');}
+function weekKey(d){const p=Utilities.formatDate(new Date(d),TZ,'yyyy-MM-dd-u').split('-').map(Number);const t=new Date(Date.UTC(p[0],p[1]-1,p[2]-(p[3]%7)));return Utilities.formatDate(t,'UTC','yyyy-MM-dd');}// week = Sunday 00:00 to Saturday 23:59:59 ET; key = Sunday date
 function summary(code){const e=EMP[code],rs=rows(code),weeks={};
  rs.filter(r=>r.outT).forEach(r=>{const k=weekKey(r.inT);(weeks[k]=weeks[k]||{week:k,hours:0,shifts:[]});weeks[k].hours+=Number(r.hours);weeks[k].shifts.push({job:r.job,in:fmt(r.inT),out:fmt(r.outT),hours:+Number(r.hours).toFixed(2)});});
  const list=Object.values(weeks).sort((a,b)=>a.week<b.week?1:-1).map(w=>{const reg=Math.min(40,w.hours),ot=Math.max(0,w.hours-40);
@@ -42,7 +42,7 @@ function estimateTakeHome(gross){const n=TAX.payPeriodsPerYear,a=Math.max(0,gros
  const ss=gross*TAX.ssRate,med=gross*TAX.medicareRate,ga=Math.max(0,gross*n-TAX.gaStdDeduction)*TAX.gaRate/n;
  const r=x=>+x.toFixed(2);return {fed:r(fed),ss:r(ss),med:r(med),ga:r(ga),net:r(gross-fed-ss-med-ga)};}
 function weekReport(code,d){const w=summary(code).weeks.find(x=>x.week===weekKey(d));if(!w)return'';const t=estimateTakeHome(w.pay),e=EMP[code];
- return '\n\n--- This week (Mon '+w.week+') so far ---\nRegular: '+w.regular+' h x $'+e.rate+' = $'+(w.regular*e.rate).toFixed(2)+
+ return '\n\n--- This week (Sun '+w.week+' to Sat) so far ---\nRegular: '+w.regular+' h x $'+e.rate+' = $'+(w.regular*e.rate).toFixed(2)+
  '\nOvertime: '+w.overtime+' h x $'+(e.rate*1.5)+' = $'+(w.overtime*e.rate*1.5).toFixed(2)+'\nGross pay: $'+w.pay.toFixed(2)+
  '\n\nESTIMATED take-home (estimate only, not a pay stub):\nFederal income tax: -$'+t.fed+'\nSocial Security 6.2%: -$'+t.ss+'\nMedicare 1.45%: -$'+t.med+'\nGeorgia income tax: -$'+t.ga+'\nEstimated net: $'+t.net+
  '\nAssumptions: weekly pay, single, standard deduction, no extra W-4/G-4 adjustments; 2026 IRS Pub 15-T percentage method; GA 4.99% after $15,000 std deduction.';}
