@@ -13,13 +13,25 @@ const EMP={
 const SEED_JOBS=['WT Moore','Ruediger'];// schools live on the Masters tab (col A); these are seeded if missing
 function jobsList(){const m=mastersSheet(),all=m.getDataRange().getValues().slice(1),names=all.map(r=>String(r[0]).trim()),v=all.filter(r=>String(r[0]).trim()&&!String(r[3]||'').trim()).map(r=>String(r[0]).trim());SEED_JOBS.forEach(j=>{if(names.indexOf(j)<0){masterFolder(j);v.push(j);}});return v;}// col D 'removed' = hidden from pickers (folder + punches kept)
 function isJob(j){return jobsList().indexOf(j)>=0;}
-function addJob(name){name=cleanName(name).replace(/\s+/g,' ').slice(0,60);if(!name)return {error:'Type the school name'};const l=jobsList(),d=l.find(j=>j.toLowerCase()===name.toLowerCase());if(d)return {jobs:l,job:d,existed:true};
- const m=mastersSheet(),v=m.getDataRange().getValues();for(let i=1;i<v.length;i++)if(String(v[i][0]).trim().toLowerCase()===name.toLowerCase()&&String(v[i][3]||'').trim()){m.getRange(i+1,4).setValue('');const j=String(v[i][0]).trim();masterFolder(j);return {jobs:jobsList(),job:j,restored:true};}// re-adding a removed school reuses its folder
- masterFolder(name);return {jobs:jobsList(),job:name};}
+function addJob(name){name=cleanName(name).replace(/\s+/g,' ').slice(0,60);if(!name)return {error:'Type the school name'};const l=jobsList(),d=l.find(j=>j.toLowerCase()===name.toLowerCase());if(d)return {jobs:l,addrs:addrMap(),job:d,existed:true};
+ const m=mastersSheet(),v=m.getDataRange().getValues();for(let i=1;i<v.length;i++)if(String(v[i][0]).trim().toLowerCase()===name.toLowerCase()&&String(v[i][3]||'').trim()){m.getRange(i+1,4).setValue('');const j=String(v[i][0]).trim();masterFolder(j);return {jobs:jobsList(),addrs:addrMap(),job:j,restored:true};}// re-adding a removed school reuses its folder
+ masterFolder(name);return {jobs:jobsList(),addrs:addrMap(),job:name};}
+// Addresses live in Masters col E ('address'); D is 'removed'. SEED_ADDR fills blanks once (verified on leonschools.net).
+const SEED_ADDR={'WT Moore':'1706 Dempsey Mayo Rd, Tallahassee, FL 32308','Ruediger':'526 W 10th Ave, Tallahassee, FL 32303','Swift Creek':'2100 Pedrick Rd, Tallahassee, FL 32317'};
+function addrMap(){const m=mastersSheet(),v=m.getDataRange().getValues(),o={};if(String((v[0]||[])[4]||'')!=='address')m.getRange(1,5).setValue('address');
+ for(let i=1;i<v.length;i++){const j=String(v[i][0]).trim();if(!j||String(v[i][3]||'').trim())continue;let a=String(v[i][4]||'').trim();if(!a&&SEED_ADDR[j]){a=SEED_ADDR[j];m.getRange(i+1,5).setValue(a);}o[j]=a;}return o;}
+function setAddr(p){const job=String(p.job||'').trim();if(!isJob(job))return {error:'School not found'};const a=String(p.address||'').replace(/[\u0000-\u001f]/g,' ').replace(/\s+/g,' ').trim().slice(0,200);
+ const m=mastersSheet(),v=m.getDataRange().getValues();for(let i=1;i<v.length;i++)if(String(v[i][0]).trim()===job&&!String(v[i][3]||'').trim())m.getRange(i+1,5).setValue(a);return {ok:true,jobs:jobsList(),addrs:addrMap()};}
+// Find a school's street address: Gemini (with Google Search grounding) if GEMINI_API_KEY is set, else Apps Script geocoder. Never saves; app confirms then calls setaddr.
+function findAddr(p){const name=cleanName(p.job||p.name).slice(0,80);if(!name)return {error:'Type the school name'};const key=PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY');let err='';
+ if(key){try{const t=gemini(key,{contents:[{role:'user',parts:[{text:'Find the full street address of this school or job site: "'+name+'". Tech Sourced Solutions works in South Georgia and North Florida (Tallahassee, Valdosta, Thomasville and nearby), so prefer a match in that area. Reply with ONLY JSON: {"address":"street, city, ST zip","name":"official name","confident":true|false}. Use "" for address if not found.'}]}],tools:[{google_search:{}}],generationConfig:{temperature:0}});
+   const mm=String(t).match(/\{[\s\S]*\}/);const j=mm?JSON.parse(mm[0]):{};if(j.address)return {ok:true,address:String(j.address).slice(0,200),name:j.name||'',confident:j.confident!==false,source:'gemini'};}catch(x){err=x.message;}}
+ try{const g=Maps.newGeocoder().setRegion('us').setBounds(29.5,-87.7,32.8,-81.0).geocode(name+' school');const r=g&&g.results&&g.results[0];if(r)return {ok:true,address:r.formatted_address,confident:false,source:'maps'};}catch(x){err=err||x.message;}
+ return {ok:true,address:'',source:key?'gemini':'maps',note:err||'Not found'};}
 // Manager only: hide a school from pickers. Never deletes its Drive folder, photos or punches.
 function delJob(p,e){if(!e||e.manager!==true)return {error:'Not authorized'};const job=String(p.job||'').trim();if(!isJob(job))return {error:'School not found'};
  const on=sh().getDataRange().getValues().slice(1).filter(r=>r[3]&&!r[4]&&String(r[2]).trim()===job).map(r=>r[1]);if(on.length)return {error:on.join(', ')+(on.length>1?' are':' is')+' clocked in at '+job+'. They need to clock out before it can be removed.'};
- const m=mastersSheet(),v=m.getDataRange().getValues();if(!String(v[0][3]||''))m.getRange(1,4).setValue('removed');for(let i=1;i<v.length;i++)if(String(v[i][0]).trim()===job)m.getRange(i+1,4).setValue('Removed by '+e.name+' '+Utilities.formatDate(new Date(),TZ,'yyyy-MM-dd HH:mm'));return {ok:true,jobs:jobsList()};}
+ const m=mastersSheet(),v=m.getDataRange().getValues();if(!String(v[0][3]||''))m.getRange(1,4).setValue('removed');for(let i=1;i<v.length;i++)if(String(v[i][0]).trim()===job)m.getRange(i+1,4).setValue('Removed by '+e.name+' '+Utilities.formatDate(new Date(),TZ,'yyyy-MM-dd HH:mm'));return {ok:true,jobs:jobsList(),addrs:addrMap()};}
 // Plan tier. 'paid' = receipt scanning (AI reads vendor/date/total/category) is on; 'free' = plain receipt photo only (server refuses scans). TSS's own deployment is 'paid'.
 const PLAN='paid';
 function sh(){const ss=SpreadsheetApp.getActive();let s=ss.getSheetByName('Punches');
@@ -31,7 +43,7 @@ function summary(code){const e=EMP[code],rs=rows(code),weeks={};
  rs.filter(r=>r.outT).forEach(r=>{const k=weekKey(r.inT);(weeks[k]=weeks[k]||{week:k,hours:0,shifts:[]});weeks[k].hours+=Number(r.hours);weeks[k].shifts.push({job:r.job,in:fmt(r.inT),out:fmt(r.outT),hours:+Number(r.hours).toFixed(2),manual:!!r.note});});
  const list=Object.values(weeks).sort((a,b)=>a.week<b.week?1:-1).map(w=>{const reg=Math.min(40,w.hours),ot=Math.max(0,w.hours-40);
   return {...w,hours:+w.hours.toFixed(2),regular:+reg.toFixed(2),overtime:+ot.toFixed(2),pay:+(reg*e.rate+ot*e.rate*1.5).toFixed(2)};});
- const open=rs.find(r=>!r.outT);return {name:e.name,rate:e.rate,jobs:jobsList(),open:open?{job:open.job,in:fmt(open.inT),inIso:String(open.inT)}:null,weeks:list,manager:!!e.manager,plan:PLAN};}
+ const open=rs.find(r=>!r.outT);return {name:e.name,rate:e.rate,jobs:jobsList(),addrs:addrMap(),open:open?{job:open.job,in:fmt(open.inT),inIso:String(open.inT)}:null,weeks:list,manager:!!e.manager,plan:PLAN};}
 
 // ===== Take-home ESTIMATE settings (easy to change) =====
 const TAX={
@@ -128,8 +140,8 @@ function receipt(p,e){const ss=SpreadsheetApp.getActive(),n=cleanName(p.note).sl
  x.appendRow([Utilities.formatDate(t,TZ,'yyyy-MM-dd HH:mm:ss'),p.code,e.name,n,f.getUrl(),d.vendor,'',d.total===null?'':d.total,d.category]);
  const lr=x.getLastRow();x.getRange(lr,7).setNumberFormat('@').setValue(d.date);return {ok:true,url:f.getUrl(),vendor:d.vendor,date:d.date,total:d.total,category:d.category};}
 // ===== Manager portal (read-only; only EMP entries with manager:true) =====
-function managerData(e){if(!e||e.manager!==true)return {error:'Not authorized'};try{return managerData_();}catch(x){return {error:'Manager error: '+x.message};}}
-function managerData_(){
+function managerData(e,p){if(!e||e.manager!==true)return {error:'Not authorized'};try{return managerData_(p||{});}catch(x){return {error:'Manager error: '+x.message};}}
+function managerData_(q){
  const ss=SpreadsheetApp.getActive(),now=new Date(),cut=new Date(now.getTime()-14*864e5),thisW=weekKey(now),prevW=weekKey(new Date(now.getTime()-7*864e5));
  const tab=n=>{const t=ss.getSheetByName(n);return t?t.getDataRange().getValues().slice(1):[];},ts=v=>v instanceof Date?Utilities.formatDate(v,TZ,'yyyy-MM-dd HH:mm:ss'):String(v);
  const P=tab('Punches').map((r,i)=>({row:i+2,note:String(r[8]||''),code:String(r[0]),name:r[1],job:r[2],inT:r[3],outT:r[4],hours:Number(r[5]||0),photos:Number(r[6]||0),folder:r[7]||''})).filter(r=>r.inT);
@@ -141,7 +153,10 @@ function managerData_(){
  photos.sort((a,b)=>a.time<b.time?1:-1);
  const receipts=tab('Expenses').map(r=>({time:ts(r[0]),code:String(r[1]),name:r[2],note:r[3],url:r[4],vendor:r[5]||'',date:r[6] instanceof Date?Utilities.formatDate(r[6],TZ,'yyyy-MM-dd'):String(r[6]||''),total:r[7]===''?null:r[7],category:r[8]||''})).reverse().slice(0,200);
  const support=tab('Support').map(r=>({time:ts(r[0]),code:String(r[1]),name:r[2],question:r[3],photos:r[4],answer:r[5],offTopic:!!r[6]})).reverse().slice(0,200);
- return {ok:true,jobs:jobsList(),generated:fmt(now),thisWeek:thisW,lastWeek:prevW,onNow,totals,shifts,photos,receipts,support};}
+ const weeksAvail=[...new Set(P.map(r=>weekKey(r.inT)).concat([thisW]))].sort().reverse(),selW=weeksAvail.indexOf(String(q.week||''))>=0?String(q.week):thisW;
+ const week={week:selW,list:Object.keys(EMP).map(c=>{const x=EMP[c],ss=P.filter(r=>r.code===c&&weekKey(r.inT)===selW),h=ss.filter(r=>r.outT).reduce((a,r)=>a+r.hours,0),ot=Math.max(0,h-40);
+  return {code:c,name:x.name,rate:x.rate,hours:+h.toFixed(2),overtime:+ot.toFixed(2),pay:+(Math.min(40,h)*x.rate+ot*x.rate*1.5).toFixed(2),shifts:ss.map(r=>({row:r.row,job:r.job,in:fmt(r.inT),out:r.outT?fmt(r.outT):'',open:!r.outT,hours:+r.hours.toFixed(2),manual:!!r.note,note:r.note}))};})};
+ return {ok:true,week:week,weeks:weeksAvail,jobs:jobsList(),addrs:addrMap(),generated:fmt(now),thisWeek:thisW,lastWeek:prevW,onNow,totals,shifts,photos,receipts,support};}
 // ===== Manager hour fixes (manager only). Never sends clock emails, never deletes rows. Column I (note) marks manual/edited rows. =====
 function mgrTime_(d,t){if(!/^\d{4}-\d{2}-\d{2}$/.test(String(d||''))||!/^\d{1,2}:\d{2}$/.test(String(t||'')))return null;const x=Utilities.parseDate(d+' '+t,TZ,'yyyy-MM-dd HH:mm');return isNaN(x)?null:x;}
 function mgrHours(p,e){if(!e||e.manager!==true)return {error:'Not authorized'};const op=p.op,w=EMP[p.emp];if(!w)return {error:'Pick an employee'};
@@ -161,10 +176,12 @@ function mgrHours(p,e){if(!e||e.manager!==true)return {error:'Not authorized'};c
 function out(o){return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);}
 function doPost(ev){let lock=null;try{
  const p=JSON.parse(ev.postData.contents),e=EMP[p.code];if(!e)return out({error:'Invalid code'});
- if(p.action==='manager')return out(managerData(e));// manager portal: read-only, server-side manager check
+ if(p.action==='manager')return out(managerData(e,p));// manager portal: read-only, server-side manager check
  if(p.action==='mgrhours'){lock=LockService.getScriptLock();lock.waitLock(20000);return out(mgrHours(p,e));}// manager hour fixes: no emails
  if(p.action==='master')return out(p.name?renameMaster(p.job,p.name):(()=>{const f=masterFolder(p.job);return {master:f.getName(),url:f.getUrl()};})());
  if(p.action==='deljob'){lock=LockService.getScriptLock();lock.waitLock(20000);return out(delJob(p,e));}// manager only, hides school
+ if(p.action==='findaddr')return out(findAddr(p));// any employee; lookup only
+ if(p.action==='setaddr'){lock=LockService.getScriptLock();lock.waitLock(20000);return out(setAddr(p));}
  if(p.action==='addjob'){lock=LockService.getScriptLock();lock.waitLock(20000);return out(addJob(p.name));}
  if(p.action==='ask')return out(ask(p,e));
  if(p.action==='photo')return out(uploadPhoto(p,e));
