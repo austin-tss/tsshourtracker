@@ -68,7 +68,7 @@ textarea{width:100%;min-height:96px;border:2px solid var(--line);border-radius:1
 <main id="m"></main><div id="toast"></div>
 <script>
 // ===== App version: bump on every release; open pages auto-reload when a newer one is live =====
-const APP_V='41';
+const APP_V='42';
 async function vCheck(){try{if(uploading||(typeof ck!=='undefined'&&ck.busy)||(typeof rcBusy!=='undefined'&&rcBusy)||(typeof rcPend!=='undefined'&&rcPend))return;const t=await (await fetch(location.pathname+'?cb='+Date.now(),{cache:'no-store'})).text(),v=(t.match(/APP_V='(\d+)'/)||[])[1];
  if(v&&v!==APP_V)location.replace(location.pathname+'?v='+v);}catch(e){}}
 addEventListener('load',vCheck);document.addEventListener('visibilitychange',()=>{if(!document.hidden)vCheck()});addEventListener('pageshow',e=>{if(e.persisted)vCheck()});
@@ -309,7 +309,7 @@ function mgView(){clearInterval(tick);const sec=(t,b)=>`<div class="card" style=
  else if(!mg)h+=sec('Loading…','<div class="spin dk"></div>');
  else{const d=mg,f=x=>!mgEmp||x.code===mgEmp,nm=c=>(d.totals.find(t=>t.code===c)||{}).name||c;
   h+=`<div style="display:flex;gap:6px;overflow-x:auto;margin-top:12px;padding-bottom:2px">${[['','Everyone'],...d.totals.map(t=>[t.code,t.name.split(' ')[0]])].map(([c,n])=>`<button class="chip" style="border:0;flex:none;${mgEmp===c?'background:#334155;color:#fff':''}" onclick="mgEmp='${c}';mgView()">${esc(n)}</button>`).join('')}</div>`;
-  h+=mgF?mgForm():`<button class="big" style="margin-top:12px;height:52px;font-size:16px" onclick="mgOpen('add')">➕ Add hours (forgot to clock in)</button>`;
+  h+=mgF?mgForm():`<button class="big" style="margin-top:12px;height:52px;font-size:16px" onclick="mgOpen('add')">➕ Add hours</button>`;
   const on=d.onNow.filter(f);h+=sec(`🟢 On the clock now <span class="chip">${on.length}</span>`,on.length?on.map(o=>row(`<b>${esc(o.name)}</b><div class="mute" style="font-size:13px">${esc(o.job)} · since ${esc(o.since)}</div>`,`<b>${o.hours.toFixed(1)} h</b><div><button class="chip" style="border:0;margin-top:4px;color:#fbbf24" onclick="mgOpen('close',${d.onNow.indexOf(o)})">Set clock-out</button></div>`)).join(''):none('Nobody is clocked in.'));
   const wk=(w,t)=>`<b>${w.hours.toFixed(1)} h</b>${w.overtime?` <span style="color:#fbbf24;font-size:12px">+${w.overtime.toFixed(1)} OT</span>`:''}<div class="mute" style="font-size:13px">${money(w.pay)}</div>`;
   const tt=d.totals.filter(f);h+=sec('📅 This week <span class="mute" style="font-size:13px;font-weight:500">(week of '+esc(d.thisWeek)+')</span>',tt.map(t=>row(`<b>${esc(t.name)}</b><div class="mute" style="font-size:13px">$${t.rate}/hr · last wk ${t.lastWeek.hours.toFixed(1)} h · ${money(t.lastWeek.pay)}</div>`,wk(t.thisWeek))).join('')+row('<b>Total this week</b>',`<b>${money(tt.reduce((a,t)=>a+t.thisWeek.pay,0))}</b>`));
