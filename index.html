@@ -68,7 +68,7 @@ textarea{width:100%;min-height:96px;border:2px solid var(--line);border-radius:1
 <main id="m"></main><div id="toast"></div>
 <script>
 // ===== App version: bump on every release; open pages auto-reload when a newer one is live =====
-const APP_V='42';
+const APP_V='43';
 async function vCheck(){try{if(uploading||(typeof ck!=='undefined'&&ck.busy)||(typeof rcBusy!=='undefined'&&rcBusy)||(typeof rcPend!=='undefined'&&rcPend))return;const t=await (await fetch(location.pathname+'?cb='+Date.now(),{cache:'no-store'})).text(),v=(t.match(/APP_V='(\d+)'/)||[])[1];
  if(v&&v!==APP_V)location.replace(location.pathname+'?v='+v);}catch(e){}}
 addEventListener('load',vCheck);document.addEventListener('visibilitychange',()=>{if(!document.hidden)vCheck()});addEventListener('pageshow',e=>{if(e.persisted)vCheck()});
@@ -105,7 +105,7 @@ function toast(t,err){const e=$('toast');e.textContent=t;e.className='on'+(err?'
 async function call(body,ms){if(MOCK)return mock(body);const ac=new AbortController(),t=setTimeout(()=>ac.abort(),ms||45000);let r;
  try{r=await fetch(API,{method:'POST',body:JSON.stringify(body),signal:ac.signal});}catch(e){throw Error(e.name==='AbortError'?'Timed out — weak signal or server busy. Try again.':'No connection. Check signal and try again.');}finally{clearTimeout(t);}
  let j;try{j=await r.json();}catch(e){throw Error('Server error ('+r.status+'). Try again.');}if(j.error)throw Error(j.error);return j;}
-function mock(b){const t=new Date(Date.now()-(2*3600+17*60)*1000).toISOString();if(b.action==='master')return{master:'WT Moore'};if(b.action==='addjob')return{jobs:['WT Moore','Ruediger',b.name],job:b.name};if(b.action==='photo')return{ok:true};if(b.action==='scanreceipt')return{ok:true,readable:true,vendor:'HOFER KG',date:'2024-03-25',total:22.41,category:'Meals'};if(b.action==='receipt')return{ok:true,url:'#'};
+function mock(b){const t=new Date(Date.now()-(2*3600+17*60)*1000).toISOString();if(b.action==='master')return{master:'WT Moore'};if(b.action==='deljob')return{ok:true,jobs:['WT Moore']};if(b.action==='addjob')return{jobs:['WT Moore','Ruediger',b.name],job:b.name};if(b.action==='photo')return{ok:true};if(b.action==='scanreceipt')return{ok:true,readable:true,vendor:'HOFER KG',date:'2024-03-25',total:22.41,category:'Meals'};if(b.action==='receipt')return{ok:true,url:'#'};
  return{plan:new URLSearchParams(location.search).get('plan')||'paid',name:'William Griffin',rate:30,jobs:['WT Moore','Ruediger'],open:new URLSearchParams(location.search).has('out')?null:{job:'WT Moore',in:'Sat Oct 24, 7:02 AM ET',inIso:t},weeks:[{week:weekNow(),hours:31.5,regular:31.5,overtime:0,pay:945,shifts:[{job:'WT Moore',in:'Fri Oct 23, 7:00 AM ET',out:'Fri Oct 23, 3:30 PM ET',hours:8.5}]}]};}
 function weekNow(){const p=Object.fromEntries(new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit',weekday:'short'}).formatToParts(new Date()).map(x=>[x.type,x.value]));
  const d=new Date(Date.UTC(+p.year,p.month-1,+p.day));const back=(['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].indexOf(p.weekday));d.setUTCDate(d.getUTCDate()-back);return d.toISOString().slice(0,10);}
@@ -148,16 +148,17 @@ async function rooms(){const r=await tx('rooms','readonly',s=>s.get(sessKey()));
 let fmode=localStorage.fmode||'room';
 function cleanFolder(s){return String(s||'').replace(/[\u0000-\u001f\u007f\/\\]/g,'').replace(/[:*?"<>|`']/g,'').replace(/\s+/g,' ').trim().slice(0,40);}
 function roomNum(v){v=String(v||'').trim().replace(/^(room|rm)\.?\s*/i,'').replace(/[^\w .-]/g,'');return /^\d+$/.test(v)?String(+v):v;}// '012','Rm 12','Room 12' -> '12' so one folder per room
-let jpOpen=false;
-function schoolPicker(){const top=`<div style="display:flex;gap:8px;margin:8px 0 ${jpOpen?'8px':'16px'}"><button class="jobdd" style="flex:1;margin:0;text-align:left;color:var(--ink)" onclick="jpOpen=!jpOpen;render()">🏫 ${esc(job)}</button><button class="btn" style="flex:none;width:54px;margin:0;font-size:26px;padding:0" aria-label="Add school" onclick="addSchool()">+</button></div>`;
+let jpOpen=false,jpAdding='';
+function schoolPicker(){const top=`<div style="display:flex;gap:8px;margin:8px 0 ${jpOpen?'8px':'16px'}"><button class="jobdd" style="flex:1;margin:0;text-align:left;color:var(--ink)" onclick="jpOpen=!jpOpen;render()" ${jpAdding?'disabled':''}>${jpAdding?`<span class="spin dk" style="width:16px;height:16px;border-width:2px;vertical-align:-3px"></span> Loading ${esc(jpAdding)}…`:'🏫 '+esc(job)}</button><button class="btn" style="flex:none;width:54px;margin:0;font-size:26px;padding:0;${jpAdding?'opacity:.6':''}" aria-label="Add school" onclick="addSchool()" ${jpAdding?'disabled':''}>${jpAdding?'<span class="spin" style="width:20px;height:20px;border-width:3px"></span>':'+'}</button></div>`;
  if(!jpOpen)return top;return top+`<div style="background:var(--card);border:1px solid #263247;border-radius:14px;box-shadow:var(--sh);padding:8px;margin-bottom:16px"><input id="jpq" class="field" style="margin:0 0 6px" placeholder="🔍 Search schools" autocomplete="off" oninput="jpList()"><div id="jpl" style="max-height:260px;overflow:auto">${jpRows('')}</div></div>`;}
 function jpRows(q){q=q.trim().toLowerCase();const l=S.jobs.filter(j=>j.toLowerCase().includes(q));return l.length?l.map(j=>`<button onclick="pickSchool(this.dataset.j)" data-j="${esc(j)}" style="display:flex;width:100%;align-items:center;justify-content:space-between;height:50px;padding:0 12px;border:0;border-radius:10px;background:${j===job?'#13213f':'transparent'};font:600 16px var(--f);color:var(--ink);text-align:left">🏫 ${esc(j)}${j===job?'<span style="color:#60a5fa">✓</span>':''}</button>`).join(''):`<div class="mute" style="padding:12px">No school matches. Tap + to add it.</div>`;}
 function jpList(){const q=$('jpq'),l=$('jpl');if(q&&l)l.innerHTML=jpRows(q.value);}
 function schoolLocked(){alert('You are clocked in at '+(S&&S.open?S.open.job:'this school')+'.\n\nTo work at a different school, clock out first, then pick the new school and clock back in. This keeps labor cost tracked per job.');}
 function pickSchool(j){job=j;jpOpen=false;render();}
-async function addSchool(){const q=$('jpq');let n=prompt('New school name:',q&&q.value?q.value.trim():'');if(n==null)return;n=n.trim().replace(/\s+/g,' ');if(!n)return toast('Type the school name',1);
+async function addSchool(){if(jpAdding)return;const q=$('jpq');let n=prompt('New school name:',q&&q.value?q.value.trim():'');if(n==null)return;n=n.trim().replace(/\s+/g,' ');if(!n)return toast('Type the school name',1);
  const dup=S.jobs.find(j=>j.toLowerCase()===n.toLowerCase());if(dup){job=dup;jpOpen=false;render();return toast(dup+' is already in the list');}
- try{const r=await call({action:'addjob',code,name:n});S.jobs=r.jobs;job=r.job||n;jpOpen=false;render();toast('School added ✓');}catch(e){toast(e.message,1);}}
+ jpAdding=n;jpOpen=false;render();toast('Loading '+n+'…');
+ try{const r=await call({action:'addjob',code,name:n},60000);if(!r||!Array.isArray(r.jobs))throw Error('School not added. Try again.');S.jobs=r.jobs;job=r.job||n;jpAdding='';render();toast(r.existed?job+' is already in the list':'School added ✓');}catch(e){jpAdding='';render();alert('Could not add '+n+': '+e.message);}}
 function rShort(r){return r&&r[0]==='~'?r.slice(1):r;}// used in checklist file names: '<item> (204)' / '<item> (Gym)'
 function rLabel(r){return r&&r[0]==='~'?r.slice(1):'Room '+r;}// Drive folder name / screen title
 function setFmode(v){fmode=v;localStorage.fmode=v;renderRooms();}
@@ -277,7 +278,7 @@ async function ckShot(inp,i){const f=inp.files[0];inp.value='';const it=(CHECKLI
   ck.done[ck.tpl+'|'+room+'|'+it]=1;ckSave();}catch(e){alert('Upload failed: '+e.message+' — try again.');}
  ck.busy='';ckRe();}
 // ---------- Manager portal ----------
-let mg=null,mgErr='',mgBusy=false,mgEmp='',mgF=null,mgFErr='',mgFBusy=false;
+let mgDel='',mg=null,mgErr='',mgBusy=false,mgEmp='',mgF=null,mgFErr='',mgFBusy=false;
 const etParts=iso=>{const d=iso?new Date(iso):new Date(),o={};new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(d).forEach(x=>o[x.type]=x.value);return {date:o.year+'-'+o.month+'-'+o.day,time:o.hour+':'+o.minute};};
 function mgOpen(op,i){const d=mg,t=etParts();mgFErr='';
  if(op==='add')mgF={op,emp:mgEmp||'',job:'',date:t.date,inTime:'',outDate:t.date,outTime:'',reason:''};
@@ -310,6 +311,7 @@ function mgView(){clearInterval(tick);const sec=(t,b)=>`<div class="card" style=
  else{const d=mg,f=x=>!mgEmp||x.code===mgEmp,nm=c=>(d.totals.find(t=>t.code===c)||{}).name||c;
   h+=`<div style="display:flex;gap:6px;overflow-x:auto;margin-top:12px;padding-bottom:2px">${[['','Everyone'],...d.totals.map(t=>[t.code,t.name.split(' ')[0]])].map(([c,n])=>`<button class="chip" style="border:0;flex:none;${mgEmp===c?'background:#334155;color:#fff':''}" onclick="mgEmp='${c}';mgView()">${esc(n)}</button>`).join('')}</div>`;
   h+=mgF?mgForm():`<button class="big" style="margin-top:12px;height:52px;font-size:16px" onclick="mgOpen('add')">➕ Add hours</button>`;
+  h+=sec(`🏫 Schools <span class="chip">${(d.jobs||[]).length}</span>`,(d.jobs||[]).map(j=>row(`<b>${esc(j)}</b>`,`<button class="chip" style="border:0;color:#f87171" data-j="${esc(j)}" onclick="mgDelSchool(this.dataset.j)" ${mgDel?'disabled':''}>${mgDel===j?'Removing…':'🗑 Delete'}</button>`)).join('')+'<div class="mute" style="font-size:12px;margin-top:6px">Delete only removes the school from the list. Its Drive folder, photos and hours stay saved.</div>');
   const on=d.onNow.filter(f);h+=sec(`🟢 On the clock now <span class="chip">${on.length}</span>`,on.length?on.map(o=>row(`<b>${esc(o.name)}</b><div class="mute" style="font-size:13px">${esc(o.job)} · since ${esc(o.since)}</div>`,`<b>${o.hours.toFixed(1)} h</b><div><button class="chip" style="border:0;margin-top:4px;color:#fbbf24" onclick="mgOpen('close',${d.onNow.indexOf(o)})">Set clock-out</button></div>`)).join(''):none('Nobody is clocked in.'));
   const wk=(w,t)=>`<b>${w.hours.toFixed(1)} h</b>${w.overtime?` <span style="color:#fbbf24;font-size:12px">+${w.overtime.toFixed(1)} OT</span>`:''}<div class="mute" style="font-size:13px">${money(w.pay)}</div>`;
   const tt=d.totals.filter(f);h+=sec('📅 This week <span class="mute" style="font-size:13px;font-weight:500">(week of '+esc(d.thisWeek)+')</span>',tt.map(t=>row(`<b>${esc(t.name)}</b><div class="mute" style="font-size:13px">$${t.rate}/hr · last wk ${t.lastWeek.hours.toFixed(1)} h · ${money(t.lastWeek.pay)}</div>`,wk(t.thisWeek))).join('')+row('<b>Total this week</b>',`<b>${money(tt.reduce((a,t)=>a+t.thisWeek.pay,0))}</b>`));
@@ -318,6 +320,9 @@ function mgView(){clearInterval(tick);const sec=(t,b)=>`<div class="card" style=
   const rc=d.receipts.filter(f);h+=sec('🧾 Receipts',rc.length?rc.slice(0,60).map(x=>row(`<b>${esc(x.name)}</b> ${lk(x.url,'view')}<div class="mute" style="font-size:13px">${x.vendor||x.total!=null&&x.total!==''?`<b style="color:var(--ink)">${esc(x.vendor||'—')}</b>${x.total!=null&&x.total!==''?' · $'+Number(x.total).toFixed(2):''}${x.category?' · '+esc(x.category):''}${x.date?' · '+esc(x.date):''}<br>`:''}${esc(x.note||(x.vendor?'':'(no note)'))}</div>`,`<span class="mute" style="font-size:12px">${esc(x.time)}</span>`)).join(''):none('No receipts.'));
   const su=d.support.filter(f);h+=sec('🛠 Tech Support log',su.length?su.slice(0,60).map(x=>row(`<b>${esc(x.name)}</b>${x.offTopic?' <span class="chip" style="background:#3a171b;color:#f87171;font-size:11px">OFF-TOPIC</span>':''}<div style="font-size:14px">${esc(x.question)}</div><div class="mute" style="font-size:12px">${esc(String(x.answer||'').slice(0,140))}</div>`,`<span class="mute" style="font-size:12px">${esc(x.time)}</span>`)).join(''):none('No questions.'));}
  m.innerHTML=h;}
+async function mgDelSchool(j){if(mgDel)return;const on=mg&&mg.onNow.filter(o=>o.job===j).map(o=>o.name);if(on&&on.length)return alert(on.join(', ')+(on.length>1?' are':' is')+' clocked in at '+j+'. They need to clock out before it can be deleted.');
+ if(!confirm('Delete "'+j+'" from the school list?\n\nIt will no longer show in the school picker. Its Drive folder, photos and hours are NOT deleted.'))return;mgDel=j;mgView();
+ try{const r=await call({action:'deljob',code,job:j},60000);if(!r||!r.ok)throw Error('The server needs an update before schools can be deleted. Tell Austin.');S.jobs=r.jobs;if(job===j)job=r.jobs[0]||'';mgDel='';toast(j+' deleted ✓');return mgLoad();}catch(e){alert('Could not delete '+j+': '+e.message);}mgDel='';mgView();}
 function mgrView(){if(!S||!S.manager){tab='clock';return render();}if(!mg&&!mgBusy&&!mgErr)mgLoad();else mgView();}
 let rcpts=[],rcBusy=false,rcPend=null,rcSaving=false;
 const RC_CATS=['Materials/Parts','Tools/Equipment','Fuel','Meals','Lodging','Travel/Parking','Office/Supplies','Other'];

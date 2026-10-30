@@ -11,9 +11,15 @@ const EMP={
  '5917':{name:'Parker Bonn',email:'parkerjbonn@gmail.com',rate:20,to:'parkerjbonn@gmail.com',cc:'austin@techsourcedsolutions.com',weekReport:true,shiftPay:true},
  '2812':{name:'Callie Lassiter',rate:30,to:'austin@techsourcedsolutions.com',cc:'',weekReport:true,shiftPay:true}};// Callie: no email yet; notifications go to Austin only. When her email is added: email:'...',to:'...',cc:'austin@techsourcedsolutions.com'
 const SEED_JOBS=['WT Moore','Ruediger'];// schools live on the Masters tab (col A); these are seeded if missing
-function jobsList(){const m=mastersSheet(),v=m.getDataRange().getValues().slice(1).map(r=>String(r[0]).trim()).filter(String);SEED_JOBS.forEach(j=>{if(v.indexOf(j)<0){masterFolder(j);v.push(j);}});return v;}
+function jobsList(){const m=mastersSheet(),all=m.getDataRange().getValues().slice(1),names=all.map(r=>String(r[0]).trim()),v=all.filter(r=>String(r[0]).trim()&&!String(r[3]||'').trim()).map(r=>String(r[0]).trim());SEED_JOBS.forEach(j=>{if(names.indexOf(j)<0){masterFolder(j);v.push(j);}});return v;}// col D 'removed' = hidden from pickers (folder + punches kept)
 function isJob(j){return jobsList().indexOf(j)>=0;}
-function addJob(name){name=cleanName(name).replace(/\s+/g,' ').slice(0,60);if(!name)return {error:'Type the school name'};const l=jobsList(),d=l.find(j=>j.toLowerCase()===name.toLowerCase());if(d)return {jobs:l,job:d,existed:true};masterFolder(name);return {jobs:jobsList(),job:name};}
+function addJob(name){name=cleanName(name).replace(/\s+/g,' ').slice(0,60);if(!name)return {error:'Type the school name'};const l=jobsList(),d=l.find(j=>j.toLowerCase()===name.toLowerCase());if(d)return {jobs:l,job:d,existed:true};
+ const m=mastersSheet(),v=m.getDataRange().getValues();for(let i=1;i<v.length;i++)if(String(v[i][0]).trim().toLowerCase()===name.toLowerCase()&&String(v[i][3]||'').trim()){m.getRange(i+1,4).setValue('');const j=String(v[i][0]).trim();masterFolder(j);return {jobs:jobsList(),job:j,restored:true};}// re-adding a removed school reuses its folder
+ masterFolder(name);return {jobs:jobsList(),job:name};}
+// Manager only: hide a school from pickers. Never deletes its Drive folder, photos or punches.
+function delJob(p,e){if(!e||e.manager!==true)return {error:'Not authorized'};const job=String(p.job||'').trim();if(!isJob(job))return {error:'School not found'};
+ const on=sh().getDataRange().getValues().slice(1).filter(r=>r[3]&&!r[4]&&String(r[2]).trim()===job).map(r=>r[1]);if(on.length)return {error:on.join(', ')+(on.length>1?' are':' is')+' clocked in at '+job+'. They need to clock out before it can be removed.'};
+ const m=mastersSheet(),v=m.getDataRange().getValues();if(!String(v[0][3]||''))m.getRange(1,4).setValue('removed');for(let i=1;i<v.length;i++)if(String(v[i][0]).trim()===job)m.getRange(i+1,4).setValue('Removed by '+e.name+' '+Utilities.formatDate(new Date(),TZ,'yyyy-MM-dd HH:mm'));return {ok:true,jobs:jobsList()};}
 // Plan tier. 'paid' = receipt scanning (AI reads vendor/date/total/category) is on; 'free' = plain receipt photo only (server refuses scans). TSS's own deployment is 'paid'.
 const PLAN='paid';
 function sh(){const ss=SpreadsheetApp.getActive();let s=ss.getSheetByName('Punches');
@@ -158,6 +164,7 @@ function doPost(ev){let lock=null;try{
  if(p.action==='manager')return out(managerData(e));// manager portal: read-only, server-side manager check
  if(p.action==='mgrhours'){lock=LockService.getScriptLock();lock.waitLock(20000);return out(mgrHours(p,e));}// manager hour fixes: no emails
  if(p.action==='master')return out(p.name?renameMaster(p.job,p.name):(()=>{const f=masterFolder(p.job);return {master:f.getName(),url:f.getUrl()};})());
+ if(p.action==='deljob'){lock=LockService.getScriptLock();lock.waitLock(20000);return out(delJob(p,e));}// manager only, hides school
  if(p.action==='addjob'){lock=LockService.getScriptLock();lock.waitLock(20000);return out(addJob(p.name));}
  if(p.action==='ask')return out(ask(p,e));
  if(p.action==='photo')return out(uploadPhoto(p,e));
