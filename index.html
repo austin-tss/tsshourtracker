@@ -68,7 +68,7 @@ textarea{width:100%;min-height:96px;border:2px solid var(--line);border-radius:1
 <main id="m"></main><div id="toast"></div>
 <script>
 // ===== App version: bump on every release; open pages auto-reload when a newer one is live =====
-const APP_V='43';
+const APP_V='44';
 async function vCheck(){try{if(uploading||(typeof ck!=='undefined'&&ck.busy)||(typeof rcBusy!=='undefined'&&rcBusy)||(typeof rcPend!=='undefined'&&rcPend))return;const t=await (await fetch(location.pathname+'?cb='+Date.now(),{cache:'no-store'})).text(),v=(t.match(/APP_V='(\d+)'/)||[])[1];
  if(v&&v!==APP_V)location.replace(location.pathname+'?v='+v);}catch(e){}}
 addEventListener('load',vCheck);document.addEventListener('visibilitychange',()=>{if(!document.hidden)vCheck()});addEventListener('pageshow',e=>{if(e.persisted)vCheck()});
@@ -83,7 +83,6 @@ const LINKS=[
  {icon:'📍',label:'Directions to WT Moore',sub:'Open in Maps',ios:['comgooglemaps://?daddr=W.T.+Moore+Elementary+School&directionsmode=driving','maps://?daddr=W.T.+Moore+Elementary+School'],android:['google.navigation:q=W.T.+Moore+Elementary+School'],url:'https://www.google.com/maps/search/?api=1&query=W.T.+Moore+Elementary+School'},
  {icon:'📍',label:'Directions to Ruediger',sub:'526 W 10th Ave, Tallahassee',ios:['comgooglemaps://?daddr=Ruediger+Elementary+School,+526+W+10th+Ave,+Tallahassee,+FL+32303&directionsmode=driving','maps://?daddr=Ruediger+Elementary+School,+526+W+10th+Ave,+Tallahassee,+FL+32303'],android:['google.navigation:q=Ruediger+Elementary+School,+526+W+10th+Ave,+Tallahassee,+FL+32303'],url:'https://www.google.com/maps/search/?api=1&query=Ruediger+Elementary+School,+526+W+10th+Ave,+Tallahassee,+FL+32303'},
  {icon:'🧾',label:'Receipts',sub:'Snap & upload a receipt',tab:'receipts'}, // tab: opens an in-app tab
- {icon:'🗺️',label:'Google Maps',sub:'maps.google.com',ios:['comgooglemaps://'],url:'https://maps.google.com'},
  {icon:'📁',label:'TSS Google Drive',sub:'drive.google.com',ios:['googledrive://'],android:['intent://#Intent;package=com.google.android.apps.docs;scheme=googledrive;S.browser_fallback_url='+encodeURIComponent('https://drive.google.com')+';end'],url:'https://drive.google.com'},
 ];
 function openLink(i){const l=LINKS[i],ua=navigator.userAgent;
