@@ -65,7 +65,7 @@ textarea{width:100%;min-height:96px;border:2px solid var(--line);border-radius:1
 .mic{width:50px;height:50px;border:0;border-radius:14px;background:#1a2438;font-size:20px}.mic.on{background:#ef4444;animation:mp 1.2s infinite}@keyframes mp{0%{box-shadow:0 0 0 0 rgba(239,68,68,.55)}70%{box-shadow:0 0 0 12px rgba(239,68,68,0)}100%{box-shadow:0 0 0 0 rgba(239,68,68,0)}}.tools{display:grid;grid-template-columns:1fr 1fr 50px 1fr;gap:8px;margin-top:10px}.tools .btn{display:flex;align-items:center;justify-content:center;gap:4px;padding:0 6px;white-space:nowrap;font-size:15px;cursor:pointer}.tools .mic{width:auto}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.chips:empty{display:none}.chip a{color:var(--mute);text-decoration:none;margin-left:2px}.err-box{display:flex;align-items:center;gap:8px;margin-top:10px;padding:10px 12px;border-radius:14px;background:#2a1215;color:#fca5a5;font-size:14px;font-weight:600}</style></head><body>
 <header><div class="logo">TSS</div><div><b>Hour Tracker</b><small>Tech Sourced Solutions</small></div><div class="sp"></div><button class="link" id="lo" style="display:none" onclick="location.reload()">Log out</button></header>
-<main id="m"></main><div id="toast"></div>
+<main id="m"></main><div id="ldov" role="status" aria-live="polite" style="display:none;position:fixed;inset:0;z-index:999;background:rgba(8,12,22,.94);backdrop-filter:blur(3px);flex-direction:column;align-items:center;justify-content:center;gap:16px;color:var(--ink);font:700 20px var(--f)"><span class="spin" style="width:46px;height:46px;border-width:4px"></span><span>Loading…</span></div><div id="toast"></div>
 <script>
 // ===== App version: bump on every release; open pages auto-reload when a newer one is live =====
 const APP_V='45';
@@ -113,8 +113,8 @@ function loginView(){m.innerHTML=`<div style="text-align:center;margin:18px auto
 <div class="dots" id="dots">${'<i></i>'.repeat(4)}</div><div class="pad">${[1,2,3,4,5,6,7,8,9].map(n=>`<button onclick="key('${n}')">${n}</button>`).join('')}
 <button class="ghost" onclick="key('c')">Clear</button><button onclick="key('0')">0</button><button class="ghost" onclick="key('b')">⌫</button></div></div>`;}
 async function key(k){if(k==='c')code='';else if(k==='b')code=code.slice(0,-1);else if(code.length<4)code+=k;
- [...$('dots').children].forEach((d,i)=>d.className=i<code.length?'f':'');if(code.length===4){$('dots').innerHTML='<span class="spin dk"></span>';
- try{S=await call({action:'status',code});$('lo').style.display='';render();uploadAll();}catch(e){code='';loginView();$('dots').classList.add('shake');toast(e.message,1);}}}
+ [...$('dots').children].forEach((d,i)=>d.className=i<code.length?'f':'');if(code.length===4){$('dots').innerHTML='<span class="spin dk"></span>';$('ldov').style.display='flex';
+ try{S=await call({action:'status',code});$('ldov').style.display='none';$('lo').style.display='';render();uploadAll();}catch(e){$('ldov').style.display='none';code='';loginView();$('dots').classList.add('shake');toast(e.message,1);}}}
 // ---------- Main ----------
 function fmtT(ms){const s=Math.max(0,Math.floor(ms/1000));return[Math.floor(s/3600),Math.floor(s/60)%60,s%60].map(n=>String(n).padStart(2,'0')).join(':');}
 function render(){clearInterval(tick);const first=S.name.split(' ')[0];const w=S.weeks.find(x=>x.week===weekNow());
