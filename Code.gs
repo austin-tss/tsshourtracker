@@ -180,9 +180,70 @@ function mgrHours(p,e){if(!e||e.manager!==true)return {error:'Not authorized'};c
  if(op==='edit'){if(!r.outT)return {error:'Use Fix open shift for someone still clocked in'};const a=mgrTime_(p.date,p.inTime),b=mgrTime_(p.outDate||p.date,p.outTime);const er=chk(a,b,r.row);if(er)return {error:er};
   s.getRange(r.row,4,1,3).setValues([[a.toISOString(),b.toISOString(),((b-a)/36e5).toFixed(4)]]);s.getRange(r.row,9).setValue((r.note?r.note+' | ':'')+'Edited by '+e.name+' '+stamp+' (was '+fmt(r.inT)+' to '+fmt(r.outT)+') - '+why);return {ok:true};}
  return {error:'Unknown action'};}
+// ===== QuickBooks Online (manager only). Script Properties: QBO_CLIENT_ID, QBO_CLIENT_SECRET (Intuit developer app), optional QBO_ENV=sandbox.
+// Tokens/realm live in Script Properties (QBO_TOKENS, QBO_REALM). Redirect URI = this web app's /exec URL (handled by doGet).
+const QBO_SCOPE='com.intuit.quickbooks.accounting',QBO_MINOR='75';
+function qbProps_(){return PropertiesService.getScriptProperties();}
+function qbRedirect_(){return qbProps_().getProperty('QBO_REDIRECT_URI')||'https://script.google.com/macros/s/AKfycbzhTrysR8UYQyUpWiI-5BbZdNZpAdWzTsMpIB-6aB7m_4324AiYSoy4FlCKtVc1hqo9GA/exec';}
+function qbBase_(){return (qbProps_().getProperty('QBO_ENV')==='sandbox'?'https://sandbox-quickbooks.api.intuit.com':'https://quickbooks.api.intuit.com')+'/v3/company/'+qbProps_().getProperty('QBO_REALM');}
+function qbKeys_(){const p=qbProps_(),id=p.getProperty('QBO_CLIENT_ID'),s=p.getProperty('QBO_CLIENT_SECRET');return id&&s?{id:id,secret:s}:null;}
+function qbStatus(e){if(!e||e.manager!==true)return {error:'Not authorized'};const p=qbProps_();return {configured:!!qbKeys_(),connected:!!(p.getProperty('QBO_TOKENS')&&p.getProperty('QBO_REALM')),company:p.getProperty('QBO_COMPANY')||''};}
+function qbConnect(e){if(!e||e.manager!==true)return {error:'Not authorized'};const k=qbKeys_();if(!k)return {error:'QuickBooks keys are not set up yet (QBO_CLIENT_ID / QBO_CLIENT_SECRET). Ask Austin.'};
+ const st=Utilities.getUuid();qbProps_().setProperty('QBO_STATE',st+'|'+Date.now());
+ return {url:'https://appcenter.intuit.com/connect/oauth2?client_id='+encodeURIComponent(k.id)+'&response_type=code&scope='+encodeURIComponent(QBO_SCOPE)+'&redirect_uri='+encodeURIComponent(qbRedirect_())+'&state='+st};}
+function qbDisconnect(e){if(!e||e.manager!==true)return {error:'Not authorized'};['QBO_TOKENS','QBO_REALM','QBO_COMPANY'].forEach(k=>qbProps_().deleteProperty(k));return {ok:true};}
+function qbToken_(form){const k=qbKeys_();if(!k)throw Error('QuickBooks keys missing');
+ const r=UrlFetchApp.fetch('https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer',{method:'post',muteHttpExceptions:true,headers:{Authorization:'Basic '+Utilities.base64Encode(k.id+':'+k.secret),Accept:'application/json'},payload:form});
+ const j=JSON.parse(r.getContentText()||'{}');if(r.getResponseCode()!==200||!j.access_token)throw Error('QuickBooks sign-in failed: '+(j.error||r.getResponseCode())+'. Reconnect QuickBooks.');
+ const t={access:j.access_token,refresh:j.refresh_token,exp:Date.now()+(j.expires_in-120)*1000};qbProps_().setProperty('QBO_TOKENS',JSON.stringify(t));return t;}
+function qbAccess_(){const raw=qbProps_().getProperty('QBO_TOKENS');if(!raw||!qbProps_().getProperty('QBO_REALM'))throw Error('QuickBooks is not connected. Tap Connect QuickBooks.');
+ let t=JSON.parse(raw);if(Date.now()<t.exp)return t.access;const lock=LockService.getScriptLock();lock.waitLock(20000);
+ try{t=JSON.parse(qbProps_().getProperty('QBO_TOKENS'));if(Date.now()<t.exp)return t.access;return qbToken_({grant_type:'refresh_token',refresh_token:t.refresh}).access;}finally{lock.releaseLock();}}
+function qbApi_(method,path,body){const r=UrlFetchApp.fetch(qbBase_()+path+(path.indexOf('?')<0?'?':'&')+'minorversion='+QBO_MINOR,{method:method,muteHttpExceptions:true,contentType:'application/json',headers:{Authorization:'Bearer '+qbAccess_(),Accept:'application/json'},payload:body?JSON.stringify(body):undefined});
+ const j=JSON.parse(r.getContentText()||'{}');if(r.getResponseCode()>=300){const f=j.Fault&&j.Fault.Error&&j.Fault.Error[0];throw Error('QuickBooks error: '+(f?(f.Message+(f.Detail?' — '+f.Detail:'')):r.getResponseCode()));}return j;}
+function qbQuery_(q){return (qbApi_('get','/query?query='+encodeURIComponent(q)).QueryResponse)||{};}
+function qbOAuthPage_(q){const ok=t=>HtmlService.createHtmlOutput('<meta name="viewport" content="width=device-width"><body style="background:#0b1220;color:#e5e7eb;font:16px system-ui;padding:24px"><h2>'+t+'</h2><p>You can close this tab and go back to the TSS app.</p></body>');
+ try{const s=String(qbProps_().getProperty('QBO_STATE')||'').split('|');if(!q.state||q.state!==s[0]||Date.now()-Number(s[1])>15*60000)return ok('⚠️ Link expired. Tap Connect QuickBooks again.');
+  qbProps_().deleteProperty('QBO_STATE');qbToken_({grant_type:'authorization_code',code:q.code,redirect_uri:qbRedirect_()});qbProps_().setProperty('QBO_REALM',String(q.realmId));
+  try{const ci=qbApi_('get','/companyinfo/'+q.realmId).CompanyInfo;qbProps_().setProperty('QBO_COMPANY',ci.CompanyName||'');}catch(x){}
+  return ok('✅ QuickBooks connected');}catch(x){return ok('⚠️ '+String(x.message).replace(/</g,''));}}
+function doGet(ev){const q=(ev&&ev.parameter)||{};if(q.code&&q.realmId)return qbOAuthPage_(q);if(q.error)return HtmlService.createHtmlOutput('QuickBooks connect canceled: '+String(q.error).replace(/</g,''));return out({ok:true});}
+function qbLists_(){const c=CacheService.getScriptCache(),h=c.get('qb_lists');if(h)return JSON.parse(h);
+ const cu=(qbQuery_("select Id, DisplayName from Customer where Active = true maxresults 1000").Customer||[]).map(x=>({id:x.Id,name:x.DisplayName}));
+ const it=(qbQuery_("select Id, Name, Type from Item where Active = true maxresults 1000").Item||[]).filter(x=>x.Type!=='Category').map(x=>({id:x.Id,name:x.Name}));
+ const o={customers:cu,items:it};try{c.put('qb_lists',JSON.stringify(o),600);}catch(x){}return o;}
+function qbLookup(p,e){if(!e||e.manager!==true)return {error:'Not authorized'};try{if(p.fresh)CacheService.getScriptCache().remove('qb_lists');return qbLists_();}catch(x){return {error:x.message};}}
+function qbMatch_(list,name){const n=String(name||'').toLowerCase().replace(/[^a-z0-9]/g,'');if(!n)return null;let b=list.find(x=>x.name.toLowerCase().replace(/[^a-z0-9]/g,'')===n);
+ if(!b)b=list.find(x=>{const m=x.name.toLowerCase().replace(/[^a-z0-9]/g,'');return m&&(m.indexOf(n)>=0||n.indexOf(m)>=0);});return b||null;}
+function qbParse(p,e){if(!e||e.manager!==true)return {error:'Not authorized'};const key=qbProps_().getProperty('GEMINI_API_KEY');if(!key)return {error:'Missing GEMINI_API_KEY'};
+ const text=String(p.text||'').slice(0,3000).trim();if(!text)return {error:'Say or type the quote first'};let L={customers:[],items:[]},lerr='';try{L=qbLists_();}catch(x){lerr=x.message;}
+ const today=Utilities.formatDate(new Date(),TZ,'yyyy-MM-dd');
+ const prompt='Today is '+today+'. Turn this spoken request into a QuickBooks '+(p.type==='invoice'?'invoice':p.type==='estimate'?'estimate (quote)':'estimate (quote) or invoice')+' for an AV installation company that works in schools. Return ONLY JSON: {"type":"estimate"|"invoice","customer":string,"site":string (full school/site name, expand MS=Middle School, HS=High School, ES=Elementary School),"city":string,"state":2-letter,"order":string digits or "","startDate":"YYYY-MM-DD" or "","duration":string like "2 weeks" or "","lines":[{"item":string,"price":number,"description":string}]}. "quote"/"estimate" => estimate, "invoice"/"bill them" => invoice. Default item "AV Install" for installs, "Display Install" for displays, "Labor" for labor. Use "" for anything not said.'+
+  (L.customers.length?'\nKnown customers: '+L.customers.map(x=>x.name).slice(0,400).join('; '):'')+(L.items.length?'\nKnown items: '+L.items.map(x=>x.name).slice(0,200).join('; '):'')+'\nRequest: '+text;
+ let j;try{j=JSON.parse(gemini(key,{contents:[{role:'user',parts:[{text:prompt}]}],generationConfig:{responseMimeType:'application/json',temperature:0}}).replace(/^\s*```(?:json)?/i,'').replace(/```\s*$/,''));}catch(x){return {error:'Could not understand that. Try again or type it.'};}
+ if(Array.isArray(j))j=j[0];j=j||{};const c=qbMatch_(L.customers,j.customer);
+ const lines=(Array.isArray(j.lines)&&j.lines.length?j.lines:[{item:'AV Install',price:0}]).slice(0,20).map(l=>{const it=qbMatch_(L.items,l.item);return {item:it?it.name:String(l.item||''),itemId:it?it.id:'',price:Number(normTotal_(l.price))||0,description:String(l.description||'').slice(0,500)};});
+ return {type:p.type==='invoice'||p.type==='estimate'?p.type:(j.type==='invoice'?'invoice':'estimate'),customer:c?c.name:String(j.customer||''),customerId:c?c.id:'',site:String(j.site||''),city:String(j.city||''),state:String(j.state||'').toUpperCase().slice(0,2),order:String(j.order||'').replace(/\D/g,''),startDate:normDate_(j.startDate),duration:String(j.duration||''),lines:lines,customers:L.customers,items:L.items,listError:lerr};}
+function qbDesc_(d){const loc=[d.site,[d.city,d.state].filter(Boolean).join(', ')].map(s=>String(s||'').trim()).filter(Boolean).join(', '),parts=[];if(loc)parts.push(loc);if(d.order)parts.push('Order '+d.order);
+ const tail=[];if(d.startDate){const m=String(d.startDate).match(/^(\d{4})-(\d{2})-(\d{2})$/);if(m)tail.push('Estimated Start Date: '+['January','February','March','April','May','June','July','August','September','October','November','December'][+m[2]-1]+' '+(+m[3])+', '+m[1]+'.');}
+ if(d.duration)tail.push('Estimated Duration: '+String(d.duration).trim().replace(/\.$/,'')+'.');if(tail.length)parts.push(tail.join('\n'));return parts.join('\n\n');}
+function qbNextNum_(ent){const r=qbQuery_('select DocNumber from '+ent+' orderby MetaData.CreateTime desc maxresults 200')[ent]||[];let mx=0;r.forEach(x=>{const n=String(x.DocNumber||'');if(/^\d+$/.test(n))mx=Math.max(mx,+n);});return mx?String(mx+1):'';}
+function qbCreate(p,e){if(!e||e.manager!==true)return {error:'Not authorized'};const d=p.doc||{},inv=d.type==='invoice',ent=inv?'Invoice':'Estimate';
+ if(!/^\d+$/.test(String(d.customerId||'')))return {error:'Pick a QuickBooks customer'};const ls=(d.lines||[]).filter(l=>/^\d+$/.test(String(l.itemId||''))&&Number(l.price)>0);if(!ls.length)return {error:'Add at least one item with a price'};
+ try{qbAccess_();}catch(x){return {error:x.message};}const lock=LockService.getScriptLock();lock.waitLock(20000);try{const desc=qbDesc_(d),num=qbNextNum_(ent);
+  const body={CustomerRef:{value:String(d.customerId)},Line:ls.map((l,i)=>{const pr=Math.round(Number(l.price)*100)/100;return {DetailType:'SalesItemLineDetail',Amount:pr,Description:[i===0?desc:'',String(l.description||'').trim()].filter(Boolean).join('\n\n'),SalesItemLineDetail:{ItemRef:{value:String(l.itemId)},Qty:1,UnitPrice:pr,TaxCodeRef:{value:'NON'}}};}),EmailStatus:'NotSet',PrintStatus:'NotSet'};
+  if(num)body.DocNumber=num;if(!inv)body.TxnStatus='Pending';
+  const r=qbApi_('post','/'+ent.toLowerCase(),body)[ent];
+  return {ok:true,type:d.type,id:r.Id,number:r.DocNumber,total:r.TotalAmt,customer:(r.CustomerRef||{}).name||d.customer,url:'https://qbo.intuit.com/app/'+(inv?'invoice':'estimate')+'?txnId='+r.Id};}catch(x){return {error:x.message};}finally{lock.releaseLock();}}
 function out(o){return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);}
 function doPost(ev){let lock=null;try{
  const p=JSON.parse(ev.postData.contents),e=EMP[p.code];if(!e)return out({error:'Invalid code'});
+ if(p.action==='qbstatus')return out(qbStatus(e));// QuickBooks: all manager-only (checked inside)
+ if(p.action==='qbconnect')return out(qbConnect(e));
+ if(p.action==='qbdisconnect')return out(qbDisconnect(e));
+ if(p.action==='qblookup')return out(qbLookup(p,e));
+ if(p.action==='qbparse')return out(qbParse(p,e));
+ if(p.action==='qbcreate')return out(qbCreate(p,e));
  if(p.action==='manager')return out(managerData(e,p));// manager portal: read-only, server-side manager check
  if(p.action==='mgrhours'){lock=LockService.getScriptLock();lock.waitLock(20000);return out(mgrHours(p,e));}// manager hour fixes: no emails
  if(p.action==='master')return out(p.name?renameMaster(p.job,p.name):(()=>{const f=masterFolder(p.job);return {master:f.getName(),url:f.getUrl()};})());
