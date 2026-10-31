@@ -68,7 +68,7 @@ textarea{width:100%;min-height:96px;border:2px solid var(--line);border-radius:1
 <main id="m"></main><div id="ldov" role="status" aria-live="polite" style="display:none;position:fixed;inset:0;z-index:999;background:rgba(8,12,22,.94);backdrop-filter:blur(3px);flex-direction:column;align-items:center;justify-content:center;gap:16px;color:var(--ink);font:700 20px var(--f)"><span class="spin" style="width:46px;height:46px;border-width:4px"></span><span>Loading…</span></div><div id="toast"></div>
 <script>
 // ===== App version: bump on every release; open pages auto-reload when a newer one is live =====
-const APP_V='48';
+const APP_V='49';
 async function vCheck(){try{if(uploading||(typeof ck!=='undefined'&&ck.busy)||(typeof rcBusy!=='undefined'&&rcBusy)||(typeof rcPend!=='undefined'&&rcPend))return;const t=await (await fetch(location.pathname+'?cb='+Date.now(),{cache:'no-store'})).text(),v=(t.match(/APP_V='(\d+)'/)||[])[1];
  if(v&&v!==APP_V)location.replace(location.pathname+'?v='+v);}catch(e){}}
 addEventListener('load',vCheck);document.addEventListener('visibilitychange',()=>{if(!document.hidden)vCheck()});addEventListener('pageshow',e=>{if(e.persisted)vCheck()});
@@ -449,4 +449,4 @@ loginView();
 if(MOCK){code='7340';call({}).then(async s=>{S=s;$('lo').style.display='';await tx('rooms','readwrite',x=>x.put({k:sessKey(),list:['101','102','204','~MDF Closet']}));
  const c=document.createElement('canvas');c.width=400;c.height=400;const g=c.getContext('2d');for(const [r,col] of [['101','#93c5fd'],['204','#fcd34d']]){const gr=g.createLinearGradient(0,0,400,400);gr.addColorStop(0,col);gr.addColorStop(1,'#263247');g.fillStyle=gr;g.fillRect(0,0,400,400);
  const blob=await new Promise(ok=>c.toBlob(ok,'image/jpeg'));await tx('photos','readwrite',x=>x.add({code,inIso:S.open.inIso,room:r,takenAt:new Date().toISOString(),blob}));}render();}).catch(e=>{document.title="ERR "+e.message;});}
-</script></body></html>
+</script><footer style="text-align:center;font-size:12px;opacity:.6;padding:16px"><a href="privacy.html" style="color:inherit">Privacy</a> · <a href="eula.html" style="color:inherit">EULA</a></footer></body></html>
