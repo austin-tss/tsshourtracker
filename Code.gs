@@ -34,9 +34,16 @@ function delJob(p,e){if(!e||e.manager!==true)return {error:'Not authorized'};con
  const m=mastersSheet(),v=m.getDataRange().getValues();if(!String(v[0][3]||''))m.getRange(1,4).setValue('removed');for(let i=1;i<v.length;i++)if(String(v[i][0]).trim()===job)m.getRange(i+1,4).setValue('Removed by '+e.name+' '+Utilities.formatDate(new Date(),TZ,'yyyy-MM-dd HH:mm'));return {ok:true,jobs:jobsList(),addrs:addrMap()};}
 // Plan tier. 'paid' = receipt scanning (AI reads vendor/date/total/category) is on; 'free' = plain receipt photo only (server refuses scans). TSS's own deployment is 'paid'.
 const PLAN='paid';
+// PINs are text: '0123' must never become 123. pin_ normalizes on read; pinW_ forces text on write.
+function pin_(v){const t=String(v==null?'':v).trim().replace(/^'/,'');return /^\d{1,3}$/.test(t)?('000'+t).slice(-4):t;}
+function pinW_(v){return "'"+pin_(v);}
 function sh(){const ss=SpreadsheetApp.getActive();let s=ss.getSheetByName('Punches');
- if(!s){s=ss.insertSheet('Punches');s.appendRow(['code','name','job','in_iso','out_iso','hours','photos','photo_folder']);}return s;}
-function rows(code){return sh().getDataRange().getValues().slice(1).map((r,i)=>({row:i+2,code:String(r[0]),name:r[1],job:r[2],inT:r[3],outT:r[4],hours:r[5],note:String(r[8]||'')})).filter(r=>r.code===code);}
+ if(!s){s=ss.insertSheet('Punches');s.appendRow(['code','name','job','in_iso','out_iso','hours','photos','photo_folder']);}
+ const pr=PropertiesService.getScriptProperties();if(pr.getProperty('PIN_TEXT_FIX')!=='1'){fixPinCol_(s,1);['Expenses','Support'].forEach(n=>{const t=ss.getSheetByName(n);if(t)fixPinCol_(t,2);});pr.setProperty('PIN_TEXT_FIX','1');}return s;}
+// one-time heal: format the PIN column as text and pad numbers like 123 -> '0123'
+function fixPinCol_(s,col){const n=s.getMaxRows();s.getRange(2,col,Math.max(1,n-1),1).setNumberFormat('@');const last=s.getLastRow();if(last<2)return;const r=s.getRange(2,col,last-1,1),v=r.getValues();let ch=false;
+ const o=v.map(x=>{const p=pin_(x[0]);if(String(x[0])!==p){ch=true;}return [p];});if(ch)r.setValues(o);}
+function rows(code){return sh().getDataRange().getValues().slice(1).map((r,i)=>({row:i+2,code:pin_(r[0]),name:r[1],job:r[2],inT:r[3],outT:r[4],hours:r[5],note:String(r[8]||'')})).filter(r=>r.code===code);}
 function fmt(d){return Utilities.formatDate(new Date(d),TZ,'EEE MMM d, h:mm a')+' ET';}
 function weekKey(d){const p=Utilities.formatDate(new Date(d),TZ,'yyyy-MM-dd-u').split('-').map(Number);const t=new Date(Date.UTC(p[0],p[1]-1,p[2]-(p[3]%7)));return Utilities.formatDate(t,'UTC','yyyy-MM-dd');}// week = Sunday 00:00 to Saturday 23:59:59 ET; key = Sunday date
 function summary(code){const e=EMP[code],rs=rows(code),weeks={};
@@ -107,7 +114,7 @@ function supportSheet(){const ss=SpreadsheetApp.getActive();let t=ss.getSheetByN
 function gemini(key,body){const r=UrlFetchApp.fetch('https://generativelanguage.googleapis.com/v1beta/models/'+GEMINI_MODEL+':generateContent',{method:'post',contentType:'application/json',headers:{'x-goog-api-key':key},muteHttpExceptions:true,payload:JSON.stringify(body)});
  const j=JSON.parse(r.getContentText()||'{}');if(r.getResponseCode()!==200)throw Error('AI service error ('+r.getResponseCode()+'): '+((j.error&&j.error.message)||'try again'));
  const c=j.candidates&&j.candidates[0];return c&&c.content&&c.content.parts?c.content.parts.map(x=>x.text||'').join(''):'';}
-function supportLog(p,e,q,n,ans,off){try{supportSheet().appendRow([Utilities.formatDate(new Date(),TZ,'yyyy-MM-dd HH:mm:ss'),p.code,e.name,q,n,String(ans).slice(0,300),off?'OFF-TOPIC':'']);}catch(x){}}
+function supportLog(p,e,q,n,ans,off){try{supportSheet().appendRow([Utilities.formatDate(new Date(),TZ,'yyyy-MM-dd HH:mm:ss'),pinW_(p.code),e.name,q,n,String(ans).slice(0,300),off?'OFF-TOPIC':'']);}catch(x){}}
 function ask(p,e){const key=PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY');
  if(!key)return {error:'Tech Support is not set up yet (missing GEMINI_API_KEY in Script Properties). Ask Austin.'};
  const q=String(p.question||'').slice(0,4000).trim(),imgs=(p.images||[]).slice(0,6);
@@ -137,22 +144,22 @@ function receipt(p,e){const ss=SpreadsheetApp.getActive(),n=cleanName(p.note).sl
  const f=sub(sub(sheetParent(),'Expenses'),e.name).createFile(Utilities.newBlob(Utilities.base64Decode(p.data),'image/jpeg',e.name+' '+Utilities.formatDate(t,TZ,'yyyy-MM-dd HH-mm-ss')+' ET'+(n?' - '+n:'')+'.jpg'));
  const H=['timestamp','code','name','note','file url','Vendor','Date','Total','Category'];let x=ss.getSheetByName('Expenses');if(!x){x=ss.insertSheet('Expenses');x.appendRow(H);}else if(String(x.getRange(1,6).getValue())!=='Vendor')x.getRange(1,6,1,4).setValues([H.slice(5)]);
  const d=PLAN==='paid'?normReceipt_({vendor:p.vendor,date:p.date,total:p.total,category:p.category}):{vendor:'',date:'',total:null,category:''};// free plan: scan fields are never stored
- x.appendRow([Utilities.formatDate(t,TZ,'yyyy-MM-dd HH:mm:ss'),p.code,e.name,n,f.getUrl(),d.vendor,'',d.total===null?'':d.total,d.category]);
+ x.appendRow([Utilities.formatDate(t,TZ,'yyyy-MM-dd HH:mm:ss'),pinW_(p.code),e.name,n,f.getUrl(),d.vendor,'',d.total===null?'':d.total,d.category]);
  const lr=x.getLastRow();x.getRange(lr,7).setNumberFormat('@').setValue(d.date);return {ok:true,url:f.getUrl(),vendor:d.vendor,date:d.date,total:d.total,category:d.category};}
 // ===== Manager portal (read-only; only EMP entries with manager:true) =====
 function managerData(e,p){if(!e||e.manager!==true)return {error:'Not authorized'};try{return managerData_(p||{});}catch(x){return {error:'Manager error: '+x.message};}}
 function managerData_(q){
  const ss=SpreadsheetApp.getActive(),now=new Date(),cut=new Date(now.getTime()-14*864e5),thisW=weekKey(now),prevW=weekKey(new Date(now.getTime()-7*864e5));
  const tab=n=>{const t=ss.getSheetByName(n);return t?t.getDataRange().getValues().slice(1):[];},ts=v=>v instanceof Date?Utilities.formatDate(v,TZ,'yyyy-MM-dd HH:mm:ss'):String(v);
- const P=tab('Punches').map((r,i)=>({row:i+2,note:String(r[8]||''),code:String(r[0]),name:r[1],job:r[2],inT:r[3],outT:r[4],hours:Number(r[5]||0),photos:Number(r[6]||0),folder:r[7]||''})).filter(r=>r.inT);
+ const P=tab('Punches').map((r,i)=>({row:i+2,note:String(r[8]||''),code:pin_(r[0]),name:r[1],job:r[2],inT:r[3],outT:r[4],hours:Number(r[5]||0),photos:Number(r[6]||0),folder:r[7]||''})).filter(r=>r.inT);
  const onNow=P.filter(r=>!r.outT).map(r=>({row:r.row,name:r.name,code:r.code,job:r.job,since:fmt(r.inT),inIso:String(r.inT),hours:+((now-new Date(r.inT))/36e5).toFixed(2)}));
  const weeks={};P.filter(r=>r.outT).forEach(r=>{const k=weekKey(r.inT);if(k!==thisW&&k!==prevW)return;const id=r.code+'|'+k;(weeks[id]=weeks[id]||{code:r.code,week:k,hours:0}).hours+=r.hours;});
  const totals=Object.keys(EMP).map(c=>{const x=EMP[c],f=k=>{const h=(weeks[c+'|'+k]||{hours:0}).hours,reg=Math.min(40,h),ot=Math.max(0,h-40);return {hours:+h.toFixed(2),overtime:+ot.toFixed(2),pay:+(reg*x.rate+ot*x.rate*1.5).toFixed(2)};};return {code:c,name:x.name,rate:x.rate,thisWeek:f(thisW),lastWeek:f(prevW)};});
  const shifts=P.filter(r=>new Date(r.inT)>=cut).map(r=>({row:r.row,note:r.note,manual:!!r.note,outIso:String(r.outT||''),name:r.name,code:r.code,job:r.job,in:fmt(r.inT),inIso:String(r.inT),out:r.outT?fmt(r.outT):'',hours:+r.hours.toFixed(2),pay:+(r.hours*((EMP[r.code]||{}).rate||0)).toFixed(2),photos:r.photos,folder:r.folder})).reverse();
  const photos=[],t0=Date.now(),cap=()=>photos.length<200&&Date.now()-t0<8000;try{jobsList().forEach(j=>{const mf=masterFolder(j),fs=mf.getFolders();while(fs.hasNext()&&cap()){const rf=fs.next(),it=rf.getFiles();while(it.hasNext()&&cap()){const f=it.next(),d=f.getDateCreated();if(d>=cut)photos.push({job:j,room:rf.getName(),name:f.getName(),url:f.getUrl(),time:Utilities.formatDate(d,TZ,'yyyy-MM-dd HH:mm'),checklist:f.getName().indexOf(rf.getName()+' ')!==0});}}});}catch(x){}
  photos.sort((a,b)=>a.time<b.time?1:-1);
- const receipts=tab('Expenses').map(r=>({time:ts(r[0]),code:String(r[1]),name:r[2],note:r[3],url:r[4],vendor:r[5]||'',date:r[6] instanceof Date?Utilities.formatDate(r[6],TZ,'yyyy-MM-dd'):String(r[6]||''),total:r[7]===''?null:r[7],category:r[8]||''})).reverse().slice(0,200);
- const support=tab('Support').map(r=>({time:ts(r[0]),code:String(r[1]),name:r[2],question:r[3],photos:r[4],answer:r[5],offTopic:!!r[6]})).reverse().slice(0,200);
+ const receipts=tab('Expenses').map(r=>({time:ts(r[0]),code:pin_(r[1]),name:r[2],note:r[3],url:r[4],vendor:r[5]||'',date:r[6] instanceof Date?Utilities.formatDate(r[6],TZ,'yyyy-MM-dd'):String(r[6]||''),total:r[7]===''?null:r[7],category:r[8]||''})).reverse().slice(0,200);
+ const support=tab('Support').map(r=>({time:ts(r[0]),code:pin_(r[1]),name:r[2],question:r[3],photos:r[4],answer:r[5],offTopic:!!r[6]})).reverse().slice(0,200);
  const weeksAvail=[...new Set(P.map(r=>weekKey(r.inT)).concat([thisW]))].sort().reverse(),selW=weeksAvail.indexOf(String(q.week||''))>=0?String(q.week):thisW;
  const week={week:selW,list:Object.keys(EMP).map(c=>{const x=EMP[c],ss=P.filter(r=>r.code===c&&weekKey(r.inT)===selW),h=ss.filter(r=>r.outT).reduce((a,r)=>a+r.hours,0),ot=Math.max(0,h-40);
   return {code:c,name:x.name,rate:x.rate,hours:+h.toFixed(2),overtime:+ot.toFixed(2),pay:+(Math.min(40,h)*x.rate+ot*x.rate*1.5).toFixed(2),shifts:ss.map(r=>({row:r.row,job:r.job,in:fmt(r.inT),out:r.outT?fmt(r.outT):'',open:!r.outT,hours:+r.hours.toFixed(2),manual:!!r.note,note:r.note}))};})};
@@ -166,7 +173,7 @@ function mgrHours(p,e){if(!e||e.manager!==true)return {error:'Not authorized'};c
  const chk=(a,b,skip)=>{if(!a||!b)return 'Enter a valid date and time';if(b<=a)return 'Clock-out must be after clock-in';if(b-a>=864e5)return 'Shift must be under 24 hours';if(b>new Date(Date.now()+5*6e4))return 'Clock-out can’t be in the future';
   const o=all.find(r=>r.row!==skip&&r.outT&&new Date(r.inT)<b&&new Date(r.outT)>a);return o?'Overlaps another shift ('+fmt(o.inT)+')':'';};
  if(op==='add'){if(!isJob(p.job))return {error:'Pick a school'};const a=mgrTime_(p.date,p.inTime);let b=mgrTime_(p.outDate||p.date,p.outTime);
-  const er=chk(a,b,0);if(er)return {error:er};s.appendRow([p.emp,w.name,p.job,a.toISOString(),b.toISOString(),((b-a)/36e5).toFixed(4),'','','Manual: added by '+e.name+' '+stamp+' - '+why]);return {ok:true};}
+  const er=chk(a,b,0);if(er)return {error:er};s.appendRow([pinW_(p.emp),w.name,p.job,a.toISOString(),b.toISOString(),((b-a)/36e5).toFixed(4),'','','Manual: added by '+e.name+' '+stamp+' - '+why]);return {ok:true};}
  const r=all.find(x=>x.row===Number(p.row)&&String(x.inT)===String(p.inIso));if(!r)return {error:'That shift changed. Refresh and try again.'};
  if(op==='close'){if(r.outT)return {error:'That shift is already clocked out. Refresh.'};const a=new Date(r.inT),b=mgrTime_(p.outDate,p.outTime);const er=chk(a,b,r.row);if(er)return {error:er};
   s.getRange(r.row,5,1,2).setValues([[b.toISOString(),((b-a)/36e5).toFixed(4)]]);s.getRange(r.row,9).setValue((r.note?r.note+' | ':'')+'Clock-out set by '+e.name+' '+stamp+' - '+why);return {ok:true};}
@@ -189,7 +196,7 @@ function doPost(ev){let lock=null;try{
  if(p.action==='receipt')return out(receipt(p,e));
  if(p.action==='punch'){lock=LockService.getScriptLock();lock.waitLock(20000);const open=rows(p.code).find(r=>!r.outT),now=new Date();
   if(!open){if(!isJob(p.job))return out({error:'Pick a school'});
-   sh().appendRow([p.code,e.name,p.job,now.toISOString(),'','']);
+   sh().appendRow([pinW_(p.code),e.name,p.job,now.toISOString(),'','']);
    MailApp.sendEmail(e.to||'austin@techsourcedsolutions.com','TSShourtracker: Clocked in - '+p.job,e.name+' clocked in\nJob: '+p.job+'\nTime: '+fmt(now),(e.cc?{cc:e.cc}:{}));}
   else{const h=(now-new Date(open.inT))/36e5,np=Number(p.photos||0);let pl='';if(np>0){try{pl='\nPhotos: '+np+' uploading to '+masterFolder(open.job).getUrl();}catch(x){pl='\nPhotos: '+np+' uploading';}}sh().getRange(open.row,5,1,2).setValues([[now.toISOString(),h.toFixed(4)]]);
    MailApp.sendEmail(e.to||'austin@techsourcedsolutions.com','TSShourtracker: Clocked out - '+open.job,e.name+' clocked out\nJob: '+open.job+'\nIn: '+fmt(open.inT)+'\nOut: '+fmt(now)+'\nShift hours: '+h.toFixed(2)+pl+(e.shiftPay?shiftPayReport(p.code,open.inT,h):'')+(e.weekReport?weekReport(p.code,open.inT):''),(e.cc?{cc:e.cc}:{}));}}
