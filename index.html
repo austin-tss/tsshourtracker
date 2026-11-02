@@ -68,13 +68,15 @@ textarea{width:100%;min-height:96px;border:2px solid var(--line);border-radius:1
 <main id="m"></main><div id="ldov" role="status" aria-live="polite" style="display:none;position:fixed;inset:0;z-index:999;background:rgba(8,12,22,.94);backdrop-filter:blur(3px);flex-direction:column;align-items:center;justify-content:center;gap:16px;color:var(--ink);font:700 20px var(--f)"><span class="spin" style="width:46px;height:46px;border-width:4px"></span><span>Loading…</span></div><div id="toast"></div>
 <script>
 // ===== App version: bump on every release; open pages auto-reload when a newer one is live =====
-const APP_V='51';
+const APP_V='52';
 async function vCheck(){try{if(uploading||(typeof ck!=='undefined'&&ck.busy)||(typeof rcBusy!=='undefined'&&rcBusy)||(typeof rcPend!=='undefined'&&rcPend)||(typeof mi!=='undefined'&&mi&&(mi.busy||mi.dirty)))return;const t=await (await fetch(location.pathname+'?cb='+Date.now(),{cache:'no-store'})).text(),v=(t.match(/APP_V='(\d+)'/)||[])[1];
  if(v&&v!==APP_V)location.replace(location.pathname+'?v='+v);}catch(e){}}
 addEventListener('load',vCheck);document.addEventListener('visibilitychange',()=>{if(!document.hidden)vCheck()});addEventListener('pageshow',e=>{if(e.persisted)vCheck()});
 
 // ===== Links tab: edit this list to add/remove links =====
 // ios/android: native app deep links tried in order first; url = web fallback
+// Drive web + Android browser_fallback_url use Account Chooser so the TSS business Google account is selected. Email only — never a password.
+const DRIVE_WEB='https://accounts.google.com/AccountChooser?Email=siteleadtss%40gmail.com&continue=https%3A%2F%2Fdrive.google.com';
 // ===== Checklists: add templates here =====
 const CHECKLISTS={
  'Default AE checklist':['Amp installed','4 speakers installed','Service loop above ceiling','Picture of call button installed'],
@@ -82,7 +84,7 @@ const CHECKLISTS={
 const LINKS=[
  {icon:'🗺️',label:'Maps',sub:'Directions to every school',tab:'maps'},
  {icon:'🧾',label:'Receipts',sub:'Snap & upload a receipt',tab:'receipts'}, // tab: opens an in-app tab
- {icon:'📁',label:'TSS Google Drive',sub:'drive.google.com',ios:['googledrive://'],android:['intent://#Intent;package=com.google.android.apps.docs;scheme=googledrive;S.browser_fallback_url='+encodeURIComponent('https://drive.google.com')+';end'],url:'https://drive.google.com'},
+ {icon:'📁',label:'TSS Google Drive',sub:'Sign in as siteleadtss@gmail.com',ios:['googledrive://'],android:['intent://#Intent;package=com.google.android.apps.docs;scheme=googledrive;S.browser_fallback_url='+encodeURIComponent(DRIVE_WEB)+';end'],url:DRIVE_WEB},
 ];
 function openLink(i){openNav(LINKS[i]);}
 function openNav(l){const ua=navigator.userAgent;
