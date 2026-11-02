@@ -18,7 +18,9 @@ const EMP={
  '2565':{name:'Joe Miller',rate:27.5,otEligible:true,to:CLOCK_TO,cc:'',weekReport:true,shiftPay:true},
  '6154':{name:'Lee Ellis',rate:35,otEligible:false,to:CLOCK_TO,cc:'',weekReport:true,shiftPay:true},
  '0231':{name:'Austyn Roach',rate:25,otEligible:false,to:CLOCK_TO,cc:'',weekReport:true,shiftPay:true},
- '5710':{name:'Stratton Ponder',rate:22,otEligible:false,to:CLOCK_TO,cc:'',weekReport:true,shiftPay:true}};
+ '5710':{name:'Stratton Ponder',rate:22,otEligible:false,to:CLOCK_TO,cc:'',weekReport:true,shiftPay:true},
+ '0027':{name:'Trent Phillips',rate:30,otEligible:true,to:CLOCK_TO,cc:'',weekReport:true,shiftPay:true},
+ '6213':{name:'Blake Noblin',rate:20,otEligible:false,to:CLOCK_TO,cc:'',weekReport:true,shiftPay:true}};
 // Missing otEligible counts as eligible so older rows keep 1.5x over 40 hours.
 function otEligible_(e){return !e||e.otEligible!==false;}
 function weekPay_(hours,rate,eligible){const h=Number(hours)||0,r=Number(rate)||0;
