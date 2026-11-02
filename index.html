@@ -68,7 +68,7 @@ textarea{width:100%;min-height:96px;border:2px solid var(--line);border-radius:1
 <main id="m"></main><div id="ldov" role="status" aria-live="polite" style="display:none;position:fixed;inset:0;z-index:999;background:rgba(8,12,22,.94);backdrop-filter:blur(3px);flex-direction:column;align-items:center;justify-content:center;gap:16px;color:var(--ink);font:700 20px var(--f)"><span class="spin" style="width:46px;height:46px;border-width:4px"></span><span>Loading…</span></div><div id="toast"></div>
 <script>
 // ===== App version: bump on every release; open pages auto-reload when a newer one is live =====
-const APP_V='49';
+const APP_V='50';
 async function vCheck(){try{if(uploading||(typeof ck!=='undefined'&&ck.busy)||(typeof rcBusy!=='undefined'&&rcBusy)||(typeof rcPend!=='undefined'&&rcPend))return;const t=await (await fetch(location.pathname+'?cb='+Date.now(),{cache:'no-store'})).text(),v=(t.match(/APP_V='(\d+)'/)||[])[1];
  if(v&&v!==APP_V)location.replace(location.pathname+'?v='+v);}catch(e){}}
 addEventListener('load',vCheck);document.addEventListener('visibilitychange',()=>{if(!document.hidden)vCheck()});addEventListener('pageshow',e=>{if(e.persisted)vCheck()});
@@ -341,20 +341,24 @@ function mgView(){if(tab==='qb')return qbView();clearInterval(tick);const sec=(t
  m.innerHTML=h;}
 async function mgAddr(j){if(await addrFlow(j))mgLoad();}
 // ---------- QuickBooks voice quotes/invoices (manager only; backend qb* actions) ----------
-let QV={st:null,stErr:'',busy:'',type:'auto',text:'',doc:null,res:null,err:'',rec:null,lis:false};
+let QV={st:null,stErr:'',busy:'',type:'auto',text:'',doc:null,res:null,err:'',descErr:'',rec:null,lis:false};
 async function qvStatus(){QV.busy='status';try{QV.st=await call({action:'qbstatus',code});QV.stErr='';}catch(e){QV.st=null;QV.stErr=/Unknown|action|Invalid/i.test(e.message)?'QuickBooks link is being set up. Check back soon.':e.message;}QV.busy='';if(tab==='qb')render();}
 async function qvConnect(){const w=window.open('','_blank');try{const r=await call({action:'qbconnect',code});if(w)w.location=r.url;else location.href=r.url;toast('Sign in to QuickBooks, then come back');}catch(e){if(w)w.close();toast(e.message,1);}}
 function qvMic(){const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR){toast('Voice not supported here — type it instead',1);$('qvT')&&$('qvT').focus();return;}
  if(QV.lis&&QV.rec){QV.rec.stop();return;}const r=new SR();r.lang='en-US';r.interimResults=true;r.continuous=true;const base=QV.text?QV.text+' ':'';
  r.onresult=ev=>{let t='';for(let i=0;i<ev.results.length;i++)t+=ev.results[i][0].transcript;QV.text=base+t;const x=$('qvT');if(x)x.value=QV.text;};
  r.onerror=ev=>{if(ev.error!=='aborted'&&ev.error!=='no-speech')toast('Mic: '+ev.error,1);};r.onend=()=>{QV.lis=false;QV.rec=null;render();};QV.rec=r;QV.lis=true;r.start();render();}
-async function qvParse(){const x=$('qvT');if(x)QV.text=x.value;if(QV.rec)QV.rec.stop();if(!QV.text.trim())return toast('Say or type the quote first',1);QV.busy='parse';QV.err='';QV.res=null;render();
+async function qvParse(){const x=$('qvT');if(x)QV.text=x.value;if(QV.rec)QV.rec.stop();if(!QV.text.trim())return toast('Say or type the quote first',1);QV.busy='parse';QV.err='';QV.descErr='';QV.res=null;render();
  try{QV.doc=await call({action:'qbparse',code,text:QV.text,type:QV.type==='auto'?'':QV.type},60000);}catch(e){QV.err=e.message;}QV.busy='';render();}
-function qvSet(k,v){if(QV.doc)QV.doc[k]=v;}
+function qvSet(k,v){if(!QV.doc)return;QV.doc[k]=v;if(!QV.doc.descEdited&&/^(site|city|state|order|startDate|duration)$/.test(k)){const el=$('qvDesc');if(el&&document.activeElement!==el)el.value=qvDescText(QV.doc);}}
+function qvDescInput(el){if(!QV.doc)return;QV.doc.descEdited=true;QV.doc.description=el.value;if(QV.descErr&&String(el.value||'').trim()){QV.descErr='';el.style.borderColor='';el.removeAttribute('aria-invalid');const e=$('qvDescErr');if(e)e.remove();}}
 function qvLine(i,k,v){const l=QV.doc.lines[i];if(k==='item'){const it=(QV.doc.items||[]).find(x=>x.id===v);l.itemId=v;l.item=it?it.name:'';}else l[k]=k==='price'?Number(String(v).replace(/[^0-9.]/g,''))||0:v;}
 function qvCust(v){const c=(QV.doc.customers||[]).find(x=>x.id===v);QV.doc.customerId=v;QV.doc.customer=c?c.name:'';}
-async function qvCreate(){const d=QV.doc;if(!d.customerId)return toast('Pick a customer',1);if(!d.lines.some(l=>l.itemId&&l.price>0))return toast('Add an item and price',1);
- QV.busy='create';QV.err='';render();try{QV.res=await call({action:'qbcreate',code,doc:{type:d.type,customerId:d.customerId,customer:d.customer,site:d.site,city:d.city,state:d.state,order:d.order,startDate:d.startDate,duration:d.duration,lines:d.lines}},60000);QV.doc=null;QV.text='';}catch(e){QV.err=e.message;}QV.busy='';render();}
+async function qvCreate(){const d=QV.doc;if(!d)return;const shown=$('qvDesc')?$('qvDesc').value:(d.descEdited?String(d.description||''):qvDescText(d)),desc=String(shown==null?'':shown).trim();
+ if(!desc)QV.descErr='Enter a description before creating this in QuickBooks.';else{QV.descErr='';d.description=desc;}
+ if(!d.customerId)toast('Pick a customer',1);if(!d.lines.some(l=>l.itemId&&l.price>0))toast('Add an item and price',1);
+ if(QV.descErr||!d.customerId||!d.lines.some(l=>l.itemId&&l.price>0)){render();const x=$('qvDesc');if(QV.descErr&&x){x.focus();try{x.scrollIntoView({block:'center'});}catch(e){}}return;}
+ QV.busy='create';QV.err='';render();try{QV.res=await call({action:'qbcreate',code,doc:{type:d.type,customerId:d.customerId,customer:d.customer,site:d.site,city:d.city,state:d.state,order:d.order,startDate:d.startDate,duration:d.duration,description:desc,lines:d.lines}},60000);QV.doc=null;QV.text='';QV.descErr='';}catch(e){if(/description/i.test(e.message))QV.descErr=e.message;else QV.err=e.message;}QV.busy='';render();}
 function qvAdd(){QV.doc.lines.push({item:'',itemId:'',price:0,description:''});render();}
 function qvDel(i){QV.doc.lines.splice(i,1);if(!QV.doc.lines.length)qvAdd();else render();}
 function qvHtml(){const sp='<span class="spin dk" style="width:14px;height:14px;border-width:2px"></span>',fs='margin:4px 0 8px;width:100%;box-sizing:border-box',lb=t=>`<div class="mute" style="font-size:12px;margin-top:6px">${t}</div>`;
@@ -378,10 +382,11 @@ function qvHtml(){const sp='<span class="spin dk" style="width:14px;height:14px;
   `<div style="display:flex;gap:6px"><div style="flex:1">${lb('Order #')+inp('order','optional')}</div><div style="flex:1">${lb('Start date')+inp('startDate','','date')}</div></div>`+lb('Duration')+inp('duration','2 weeks')+
   d.lines.map((l,i)=>`<div style="margin-top:8px;padding:10px;border-radius:12px;background:#121a2b">${lb('Item '+(i+1)+(l.itemId?'':' — <span style="color:#fbbf24">pick one</span>'))}<select class="field" style="${fs}" onchange="qvLine(${i},'item',this.value);render()"><option value="">Choose item…</option>${its.map(x=>`<option value="${x.id}"${x.id===l.itemId?' selected':''}>${esc(x.name)}</option>`).join('')}</select>${lb('Price (qty 1, no tax)')}<input class="field" style="${fs}" inputmode="decimal" value="${l.price||''}" placeholder="0.00" oninput="qvLine(${i},'price',this.value)">${d.lines.length>1?`<button class="chip" style="border:0" onclick="qvDel(${i})">Remove</button>`:''}</div>`).join('')+
   `<button class="chip" style="border:0;margin-top:8px" onclick="qvAdd()">+ Add line</button>`+
-  `<div class="mute" style="font-size:12px;margin-top:10px">Description preview:</div><pre style="white-space:pre-wrap;font:13px system-ui;margin:4px 0;padding:8px;border-radius:8px;background:#0b1220">${esc(qvDescPrev(d))}</pre>`+
+  lb('Description (required)')+`<textarea id="qvDesc" class="field" required aria-required="true" aria-label="Description (required)" ${QV.descErr?'aria-invalid="true" aria-describedby="qvDescErr"':''} rows="4" maxlength="4000" style="${fs};height:auto;${QV.descErr?'border-color:#f87171':''}" placeholder="Saco Middle School, Saco, ME — AV install" oninput="qvDescInput(this)">${esc(d.descEdited?String(d.description||''):qvDescText(d))}</textarea>`+
+  (QV.descErr?`<div id="qvDescErr" style="color:#f87171;font-size:13px;font-weight:600;margin:-4px 0 8px">${esc(QV.descErr)}</div>`:'')+
   (QV.err?`<div style="color:#f87171;font-size:13px">${esc(QV.err)}</div>`:'')+
-  `<button class="btn" style="width:100%;height:50px;margin-top:8px" ${QV.busy?'disabled':''} onclick="qvCreate()">${QV.busy==='create'?sp+' Creating…':'Create in QuickBooks'}</button><button class="chip" style="border:0;margin-top:8px" onclick="QV.doc=null;render()">‹ Back</button></div>`;return h;}
-function qvDescPrev(d){const M=['January','February','March','April','May','June','July','August','September','October','November','December'],p=[],loc=[d.site,[d.city,d.state].filter(Boolean).join(', ')].filter(s=>String(s||'').trim()).join(', ');if(loc)p.push(loc);if(d.order)p.push('Order '+d.order);const t=[],m=String(d.startDate||'').match(/^(\d{4})-(\d{2})-(\d{2})$/);if(m)t.push('Estimated Start Date: '+M[+m[2]-1]+' '+(+m[3])+', '+m[1]+'.');if(d.duration)t.push('Estimated Duration: '+String(d.duration).trim().replace(/\.$/,'')+'.');if(t.length)p.push(t.join('\n'));return p.join('\n\n')||'(none)';}
+  `<button class="btn" style="width:100%;height:50px;margin-top:8px" ${QV.busy?'disabled':''} onclick="qvCreate()">${QV.busy==='create'?sp+' Creating…':'Create in QuickBooks'}</button><button class="chip" style="border:0;margin-top:8px" onclick="QV.doc=null;QV.descErr='';render()">‹ Back</button></div>`;return h;}
+function qvDescText(d){const M=['January','February','March','April','May','June','July','August','September','October','November','December'],p=[],loc=[d.site,[d.city,d.state].filter(Boolean).join(', ')].filter(s=>String(s||'').trim()).join(', ');if(loc)p.push(loc);if(d.order)p.push('Order '+d.order);const t=[],m=String(d.startDate||'').match(/^(\d{4})-(\d{2})-(\d{2})$/);if(m)t.push('Estimated Start Date: '+M[+m[2]-1]+' '+(+m[3])+', '+m[1]+'.');if(d.duration)t.push('Estimated Duration: '+String(d.duration).trim().replace(/\.$/,'')+'.');if(t.length)p.push(t.join('\n'));let s=p.join('\n\n');const extra=String(d.lines&&d.lines[0]&&d.lines[0].description||'').trim();if(extra&&s.indexOf(extra)<0)s=s?s+'\n\n'+extra:extra;return s;}
 // ---------- QuickBooks tab (manager only) ----------
 const QB=[{icon:'🧾',label:'Estimates',url:'https://qbo.intuit.com/app/estimates'},{icon:'💵',label:'Invoices',url:'https://qbo.intuit.com/app/invoices'},{icon:'👥',label:'Employees',url:'https://qbo.intuit.com/app/employees'},{icon:'🛠️',label:'Contractors',url:'https://qbo.intuit.com/app/contractors'}];
 function qbView(){if(!S||!S.manager){tab='clock';return render();}clearInterval(tick);if(!mg&&!mgBusy&&!mgErr){mgLoad();return;}
