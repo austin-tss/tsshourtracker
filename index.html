@@ -68,8 +68,8 @@ textarea{width:100%;min-height:96px;border:2px solid var(--line);border-radius:1
 <main id="m"></main><div id="ldov" role="status" aria-live="polite" style="display:none;position:fixed;inset:0;z-index:999;background:rgba(8,12,22,.94);backdrop-filter:blur(3px);flex-direction:column;align-items:center;justify-content:center;gap:16px;color:var(--ink);font:700 20px var(--f)"><span class="spin" style="width:46px;height:46px;border-width:4px"></span><span>Loading…</span></div><div id="toast"></div>
 <script>
 // ===== App version: bump on every release; open pages auto-reload when a newer one is live =====
-const APP_V='50';
-async function vCheck(){try{if(uploading||(typeof ck!=='undefined'&&ck.busy)||(typeof rcBusy!=='undefined'&&rcBusy)||(typeof rcPend!=='undefined'&&rcPend))return;const t=await (await fetch(location.pathname+'?cb='+Date.now(),{cache:'no-store'})).text(),v=(t.match(/APP_V='(\d+)'/)||[])[1];
+const APP_V='51';
+async function vCheck(){try{if(uploading||(typeof ck!=='undefined'&&ck.busy)||(typeof rcBusy!=='undefined'&&rcBusy)||(typeof rcPend!=='undefined'&&rcPend)||(typeof mi!=='undefined'&&mi&&(mi.busy||mi.dirty)))return;const t=await (await fetch(location.pathname+'?cb='+Date.now(),{cache:'no-store'})).text(),v=(t.match(/APP_V='(\d+)'/)||[])[1];
  if(v&&v!==APP_V)location.replace(location.pathname+'?v='+v);}catch(e){}}
 addEventListener('load',vCheck);document.addEventListener('visibilitychange',()=>{if(!document.hidden)vCheck()});addEventListener('pageshow',e=>{if(e.persisted)vCheck()});
 
@@ -104,8 +104,16 @@ function toast(t,err){const e=$('toast');e.textContent=t;e.className='on'+(err?'
 async function call(body,ms){if(MOCK)return mock(body);const ac=new AbortController(),t=setTimeout(()=>ac.abort(),ms||45000);let r;
  try{r=await fetch(API,{method:'POST',body:JSON.stringify(body),signal:ac.signal});}catch(e){throw Error(e.name==='AbortError'?'Timed out — weak signal or server busy. Try again.':'No connection. Check signal and try again.');}finally{clearTimeout(t);}
  let j;try{j=await r.json();}catch(e){throw Error('Server error ('+r.status+'). Try again.');}if(j.error)throw Error(j.error);return j;}
-function mock(b){const t=new Date(Date.now()-(2*3600+17*60)*1000).toISOString();if(b.action==='master')return{master:'WT Moore'};if(b.action==='deljob')return{ok:true,jobs:['WT Moore']};if(b.action==='addjob')return{jobs:['WT Moore','Ruediger',b.name],job:b.name};if(b.action==='photo')return{ok:true};if(b.action==='scanreceipt')return{ok:true,readable:true,vendor:'HOFER KG',date:'2024-03-25',total:22.41,category:'Meals'};if(b.action==='receipt')return{ok:true,url:'#'};
- return{plan:new URLSearchParams(location.search).get('plan')||'paid',name:'William Griffin',rate:30,jobs:['WT Moore','Ruediger'],open:new URLSearchParams(location.search).has('out')?null:{job:'WT Moore',in:'Sat Oct 24, 7:02 AM ET',inIso:t},weeks:[{week:weekNow(),hours:31.5,regular:31.5,overtime:0,pay:945,shifts:[{job:'WT Moore',in:'Fri Oct 23, 7:00 AM ET',out:'Fri Oct 23, 3:30 PM ET',hours:8.5}]}]};}
+const MOCK_EMP={'7340':{name:'William Griffin',mileage:true},'6789':{name:'Taylor',mileage:true,manager:true},'1234':{name:'Paul Sorenson'}};
+let mockMiles={};try{mockMiles=JSON.parse(sessionStorage.tssMockMiles||'{}');}catch(e){}
+function mockRemember(){try{sessionStorage.tssMockMiles=JSON.stringify(mockMiles);}catch(e){}}
+function mock(b){const t=new Date(Date.now()-(2*3600+17*60)*1000).toISOString(),who=MOCK_EMP[code]||{name:'Alex'};
+ if(b.action==='master')return{master:'WT Moore'};if(b.action==='deljob')return{ok:true,jobs:['WT Moore']};if(b.action==='addjob')return{jobs:['WT Moore','Ruediger',b.name],job:b.name};if(b.action==='photo')return{ok:true};if(b.action==='scanreceipt')return{ok:true,readable:true,vendor:'HOFER KG',date:'2024-03-25',total:22.41,category:'Meals'};if(b.action==='receipt')return{ok:true,url:'#'};
+ if(b.action==='mileage'){if(!who.mileage)return{error:'Mileage is not enabled for this account'};const week=weekNow(),k=code+'|'+week;
+  if(!b.save)return mockMiles[k]||{ok:true,week:week,start:null,end:null,total:null};
+  const start=Number(b.start),end=Number(b.end),total=Math.round((end-start)*10)/10;mockMiles[k]={ok:true,week:week,start:start,end:end,total:total};mockRemember();return mockMiles[k];}
+ const week=weekNow();
+ return{plan:new URLSearchParams(location.search).get('plan')||'paid',name:who.name,rate:30,manager:!!who.manager,mileage:!!who.mileage,weekMileage:who.mileage?(mockMiles[code+'|'+week]||{ok:true,week:week,start:null,end:null,total:null}):undefined,jobs:['WT Moore','Ruediger'],open:new URLSearchParams(location.search).has('out')?null:{job:'WT Moore',in:'Sat Oct 24, 7:02 AM ET',inIso:t},weeks:[{week:week,hours:31.5,regular:31.5,overtime:0,pay:945,shifts:[{job:'WT Moore',in:'Fri Oct 23, 7:00 AM ET',out:'Fri Oct 23, 3:30 PM ET',hours:8.5}]}]};}
 function weekNow(){const p=Object.fromEntries(new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit',weekday:'short'}).formatToParts(new Date()).map(x=>[x.type,x.value]));
  const d=new Date(Date.UTC(+p.year,p.month-1,+p.day));const back=(['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].indexOf(p.weekday));d.setUTCDate(d.getUTCDate()-back);return d.toISOString().slice(0,10);}
 // ---------- Login keypad ----------
@@ -114,7 +122,7 @@ function loginView(){m.innerHTML=`<div style="text-align:center;margin:18px auto
 <button class="ghost" onclick="key('c')">Clear</button><button onclick="key('0')">0</button><button class="ghost" onclick="key('b')">⌫</button></div></div>`;}
 async function key(k){if(k==='c')code='';else if(k==='b')code=code.slice(0,-1);else if(code.length<4)code+=k;
  [...$('dots').children].forEach((d,i)=>d.className=i<code.length?'f':'');if(code.length===4){$('dots').innerHTML='<span class="spin dk"></span>';$('ldov').style.display='flex';
- try{S=await call({action:'status',code});$('ldov').style.display='none';$('lo').style.display='';render();uploadAll();}catch(e){$('ldov').style.display='none';code='';loginView();$('dots').classList.add('shake');toast(e.message,1);}}}
+ try{S=await call({action:'status',code});if(S&&S.weekMileage)miApply(S.weekMileage);$('ldov').style.display='none';$('lo').style.display='';render();uploadAll();}catch(e){$('ldov').style.display='none';code='';loginView();$('dots').classList.add('shake');toast(e.message,1);}}}
 document.addEventListener('keydown',e=>{if(S||!$('dots')||$('ldov').style.display==='flex'||e.ctrlKey||e.metaKey||e.altKey)return;const a=document.activeElement;if(a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)||a&&a.isContentEditable)return;
  let k=e.key;if(/^Numpad\d$/.test(e.code))k=e.code.slice(6);if(/^[0-9]$/.test(k)){e.preventDefault();key(k);}else if(k==='Backspace'||k==='Delete'){e.preventDefault();key('b');}else if(k==='Enter'){e.preventDefault();if(code.length===4)key('');}});
 // ---------- Main ----------
@@ -417,12 +425,52 @@ let rcpts=[],rcBusy=false,rcPend=null,rcSaving=false;
 const RC_CATS=['Materials/Parts','Tools/Equipment','Fuel','Meals','Lodging','Travel/Parking','Office/Supplies','Other'];
 function rcList(){const today=new Date().toDateString(),list=rcpts.filter(r=>r.day===today);
  return list.length?`<div style="margin-top:14px;font-weight:700;font-size:14px">Today</div>`+list.map(r=>`<div class="shift"><span>🧾 ${esc(r.vendor||r.note||'Receipt')}${r.total!=null&&r.total!==''?' · <b>$'+Number(r.total).toFixed(2)+'</b>':''}</span><a href="${esc(r.url)}" target="_blank" class="mute">${esc(r.time)}</a></div>`).join(''):'<div class="empty-st"><div class="ei">🧾</div><b>No receipts yet today</b>Uploaded receipts will show here.</div>';}
+// Mileage: Taylor (6789) and William (7340) only. Rules match miles_() in Code.gs.
+let mi={start:'',end:'',week:'',busy:false,dirty:false,err:'',fetchWeek:'',fetching:false};
+function canMi(){return code==='6789'||code==='7340';}
+function miNum(v){const t=String(v==null?'':v).trim().replace(/,/g,'');if(!t)return {empty:true};if(!/^\d+(\.\d)?$/.test(t))return {bad:true};const n=Number(t);if(!isFinite(n)||n>9999999)return {bad:true};return {n:n};}
+function miEval(start,end){const a=miNum(start),b=miNum(end);
+ if(a.bad||b.bad)return {err:'Enter mileage as a number (digits, optional tenths, like 45210 or 45210.5).'};
+ if(a.empty||b.empty)return {empty:true,err:'Enter both the week starting and week ending mileage.'};
+ if(b.n<a.n)return {err:'Ending mileage can’t be less than starting mileage.'};
+ return {start:a.n,end:b.n,total:Math.round((b.n-a.n)*10)/10};}
+function miFmt(n){const x=Math.round(Number(n)*10)/10;return Number.isInteger(x)?String(x):x.toFixed(1);}
+function miWeekLabel(w){w=w||weekNow();const a=new Date(w+'T12:00:00');if(isNaN(a))return w;const b=new Date(a.getTime()+6*864e5),o={month:'short',day:'numeric'};return a.toLocaleDateString('en-US',o)+' – '+b.toLocaleDateString('en-US',o);}
+function miApply(r){if(!r)return;mi.week=r.week||weekNow();mi.start=r.start==null?'':String(r.start);mi.end=r.end==null?'':String(r.end);mi.err='';}
+function miLive(force){const sEl=$('miS'),eEl=$('miE'),start=sEl?sEl.value:mi.start,end=eEl?eEl.value:mi.end;if(sEl)mi.start=start;if(eEl)mi.end=end;
+ const r=miEval(start,end),t=$('miT'),er=$('miErr'),h=$('miHint');if(!t)return r;
+ const typed=String(start).trim()!==''||String(end).trim()!=='',bad=!!(r.err&&(!r.empty||force||typed));
+ t.innerHTML='<span class="mute">Total week mileage</span><b style="font-size:28px;font-variant-numeric:tabular-nums">'+(r.total==null?'—':miFmt(r.total)+' mi')+'</b>';
+ if(er){er.style.display=bad?'flex':'none';er.textContent=bad?r.err:'';}
+ if(h)h.textContent=!bad&&r.empty?'Enter both readings to calculate this week’s miles.':'';
+ return r;}
+function miOn(){mi.dirty=true;miLive(false);}
+function miCard(){if(!canMi())return '';const w=mi.week||weekNow();
+ return `<div class="card" id="mileage"><h2 style="font-size:18px">Mileage</h2><div class="sub">Week of ${esc(miWeekLabel(w))} · Sunday–Saturday, Eastern. Odometer at the start of the week and at the end.</div>
+ <label class="mute" style="font-size:13px;font-weight:600" for="miS">Week starting mileage</label><input id="miS" class="field" inputmode="decimal" autocomplete="off" enterkeyhint="next" placeholder="e.g. 45210" value="${esc(mi.start)}" ${mi.busy?'disabled':''} oninput="miOn()">
+ <label class="mute" style="font-size:13px;font-weight:600" for="miE">Week ending mileage</label><input id="miE" class="field" inputmode="decimal" autocomplete="off" enterkeyhint="done" placeholder="e.g. 45580" value="${esc(mi.end)}" ${mi.busy?'disabled':''} oninput="miOn()" onkeydown="if(event.key==='Enter')miSave()">
+ <div id="miT" style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:12px 14px;border-radius:14px;background:#152036;margin-bottom:4px"></div>
+ <div id="miHint" class="mute" style="font-size:13px;margin:0 0 12px"></div>
+ <div id="miErr" class="err-box" role="alert" style="display:none"></div>
+ <button id="miB" class="btn" style="width:100%;height:52px;font-size:16px" ${mi.busy?'disabled':''} onclick="miSave()">${mi.busy?'<span class="spin"></span> Saving…':'Save mileage'}</button>
+ ${mi.fetching?'<div class="mute" style="margin-top:8px;font-size:12px"><span class="spin dk" style="width:12px;height:12px;border-width:2px"></span> Loading saved mileage…</div>':''}</div>`;}
+async function miFetch(){if(!canMi()||mi.fetching||mi.busy||mi.dirty)return;const w=weekNow();mi.fetching=true;
+ try{const r=await call({action:'mileage',code});if(r&&r.ok){mi.fetchWeek=r.week||w;if(!mi.dirty)miApply(r);}else{mi.fetchWeek=w;if(r&&r.error)mi.err=r.error;}}
+ catch(e){mi.fetchWeek=w;mi.err=e.message;}
+ mi.fetching=false;if(tab==='receipts'&&!rcPend)receiptView();}
+async function miSave(){if(mi.busy||!canMi())return;const r=miLive(true);if(!r||r.err||r.total==null)return;
+ mi.busy=true;mi.err='';const btn=$('miB');if($('miS')){$('miS').disabled=true;$('miE').disabled=true;}if(btn){btn.disabled=true;btn.innerHTML='<span class="spin"></span> Saving…';}
+ try{const res=await call({action:'mileage',code,save:true,start:r.start,end:r.end});
+  if(!res||!res.ok)throw Error((res&&res.error)||'Mileage could not be saved. Ask Austin to deploy the latest Apps Script.');
+  miApply(res);mi.dirty=false;mi.fetchWeek=res.week||weekNow();mi.busy=false;toast('Mileage saved');if(tab==='receipts'&&!rcPend)receiptView();}
+ catch(e){mi.busy=false;if($('miS')){$('miS').disabled=false;$('miE').disabled=false;}if(btn){btn.disabled=false;btn.textContent='Save mileage';}const er=$('miErr');if(er){er.style.display='flex';er.textContent=e.message;}toast(e.message,1);}}
 function receiptView(){clearInterval(tick);if(rcPend)return rcConfirm();const paid=S&&S.plan==='paid';
  m.innerHTML=tabsHtml()+`<div class="card" style="margin-top:12px"><h2 style="font-size:18px">Receipts</h2><div class="sub">${paid?'Scan a receipt — the app reads it, you confirm, and it saves to Expenses.':'Snap a receipt — it uploads to Expenses in Drive.'}</div>
  ${paid?'':`<input id="rnote" class="field" maxlength="60" placeholder="Note (optional), e.g. Home Depot">`}
  <label class="big" style="display:grid;place-items:center;background:linear-gradient(135deg,var(--brand),var(--brand2));color:#fff"><span>${rcBusy?`<span class="spin"></span> ${paid?'Reading receipt…':'Uploading…'}`:paid?'📷 Scan Receipt':'📷 Take Photo'}</span><input type="file" accept="image/*" capture="environment" class="fi" ${rcBusy?'disabled':''} onchange="${paid?'rcScan':'receiptShot'}(this)"></label>
  ${paid?`<label class="btn sec" style="display:grid;place-items:center;margin-top:10px;${rcBusy?'opacity:.6':''}">🖼 Upload from photos<input type="file" accept="image/*" class="fi" ${rcBusy?'disabled':''} onchange="rcScan(this)"></label>`:''}
- <div class="dn">🔒 Photos upload automatically to TSS Google Drive · not saved to your phone</div>${rcList()}</div>`;}
+ <div class="dn">🔒 Photos upload automatically to TSS Google Drive · not saved to your phone</div>${rcList()}</div>`+miCard();
+ if(canMi()){const r=miLive(false);if(mi.err&&!(r&&r.err)){const er=$('miErr');if(er){er.style.display='flex';er.textContent=mi.err;}}if(!mi.fetching&&!mi.busy&&!mi.dirty&&mi.fetchWeek!==weekNow())miFetch();}}
 async function rcScan(i){const f=i.files[0];i.value='';if(!f||rcBusy)return;rcBusy=true;receiptView();let data;
  try{data=await b64(await shrink(f,1600,0.8));}catch(e){rcBusy=false;receiptView();return toast('Could not read that photo: '+e.message,1);}
  let r={};try{r=await call({action:'scanreceipt',code,data},60000);}catch(e){r={err:e.message};}
@@ -451,7 +499,7 @@ async function receiptShot(i){const f=i.files[0];i.value='';if(!f||rcBusy)return
  catch(e){rcBusy=false;receiptView();$('rnote').value=note;toast('Upload failed: '+e.message,1);}}
 
 loginView();
-if(MOCK){code='7340';call({}).then(async s=>{S=s;$('lo').style.display='';await tx('rooms','readwrite',x=>x.put({k:sessKey(),list:['101','102','204','~MDF Closet']}));
+if(MOCK){code=new URLSearchParams(location.search).get('code')||'7340';call({}).then(async s=>{S=s;if(S.weekMileage)miApply(S.weekMileage);$('lo').style.display='';await tx('rooms','readwrite',x=>x.put({k:sessKey(),list:['101','102','204','~MDF Closet']}));
  const c=document.createElement('canvas');c.width=400;c.height=400;const g=c.getContext('2d');for(const [r,col] of [['101','#93c5fd'],['204','#fcd34d']]){const gr=g.createLinearGradient(0,0,400,400);gr.addColorStop(0,col);gr.addColorStop(1,'#263247');g.fillStyle=gr;g.fillRect(0,0,400,400);
  const blob=await new Promise(ok=>c.toBlob(ok,'image/jpeg'));await tx('photos','readwrite',x=>x.add({code,inIso:S.open.inIso,room:r,takenAt:new Date().toISOString(),blob}));}render();}).catch(e=>{document.title="ERR "+e.message;});}
 </script><footer style="text-align:center;font-size:12px;opacity:.6;padding:16px"><a href="privacy.html" style="color:inherit">Privacy</a> · <a href="eula.html" style="color:inherit">EULA</a></footer></body></html>
