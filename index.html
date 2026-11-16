@@ -70,7 +70,7 @@ textarea{width:100%;min-height:96px;border:2px solid var(--line);border-radius:1
 <main id="m"></main><div id="ldov" role="status" aria-live="polite" style="display:none;position:fixed;inset:0;z-index:999;background:rgba(8,12,22,.94);backdrop-filter:blur(3px);flex-direction:column;align-items:center;justify-content:center;gap:16px;color:var(--ink);font:700 20px var(--f)"><span class="spin" style="width:46px;height:46px;border-width:4px"></span><span>Loading…</span></div><div id="toast"></div>
 <script>
 // ===== App version: bump on every release; open pages auto-reload when a newer one is live =====
-const APP_V='56';
+const APP_V='57';
 async function vCheck(){try{if(uploading||man||(typeof ck!=='undefined'&&ck.busy)||(typeof rcBusy!=='undefined'&&rcBusy)||(typeof rcPend!=='undefined'&&rcPend)||(typeof mi!=='undefined'&&mi&&(mi.busy||mi.dirty)))return;const t=await (await fetch(location.pathname+'?cb='+Date.now(),{cache:'no-store'})).text(),v=(t.match(/APP_V='(\d+)'/)||[])[1];
  if(v&&v!==APP_V)location.replace(location.pathname+'?v='+v);}catch(e){}}
 addEventListener('load',vCheck);document.addEventListener('visibilitychange',()=>{if(!document.hidden)vCheck()});addEventListener('pageshow',e=>{if(e.persisted)vCheck()});
@@ -189,8 +189,8 @@ function manualWhenOk(date,time){date=String(date||'').trim();time=String(time||
  const y=+date.slice(0,4),mo=+date.slice(5,7),d=+date.slice(8,10),utc=new Date(Date.UTC(y,mo-1,d));if(utc.getUTCFullYear()!==y||utc.getUTCMonth()!==mo-1||utc.getUTCDate()!==d)return '';return date+' '+time;}
 function manualErr(date,time,reason,jobName,outDate,outTime){const j=jobName||job;if(!j||!S||!Array.isArray(S.jobs)||S.jobs.indexOf(j)<0)return 'Pick a school';
  const ent=manualWhenOk(date,time);if(!ent)return 'Enter a valid time in.';
- const now=normEt(etParts()),lim=normEt(etParts(new Date(Date.now()-24*60*60*1000).toISOString())),nowK=now.date+' '+now.time,limK=lim.date+' '+lim.time;
- if(!now.time||!lim.time)return 'Enter a valid time in.';if(ent>nowK)return 'Time in can’t be in the future.';if(ent<limK)return 'Time in can’t be more than 24 hours ago.';
+ const now=normEt(etParts()),nowK=now.date+' '+now.time;
+ if(!now.time)return 'Enter a valid time in.';if(ent>nowK)return 'Time in can’t be in the future.';
  if(!String(reason||'').replace(/\s+/g,' ').trim())return 'Enter a short reason (for example, forgot to clock in).';
  const ot=String(outTime||'').trim();if(!ot)return '';
  const od=String(outDate||'').trim()||String(date||'').trim(),outK=manualWhenOk(od,ot);if(!outK)return 'Enter a valid time out.';
@@ -212,18 +212,18 @@ async function submitManual(){if(!man||man.busy)return;readManual();const err=ma
   else{if(!r.open)throw Error('The server needs an update before manual clock in works. Tell Austin.');S=r;man=null;render();toast('Clocked in ✓');}}
  catch(e){if(man){man.busy=false;man.err=e.message;}render();}}
 function manualBox(){if(!man)return `<button type="button" class="manlink" id="manLink" onclick="openManual()">Manual clock in</button>`;
- const f=man,lim=normEt(etParts(new Date(Date.now()-24*60*60*1000).toISOString())),today=normEt(etParts());
+ const f=man,today=normEt(etParts());
  return `<div id="manBox" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line)"><div style="font-weight:800;font-size:16px">Manual clock in</div>
   <div class="mute" style="font-size:13px;margin:4px 0 12px">Enter the time you started. Leave time out blank to stay on the clock. Fill time out to record the whole missed shift.</div>
   <div class="mute" style="font-size:13px;margin:2px 0 4px">School</div><div style="font-weight:700;margin-bottom:10px">🏫 ${esc(job||'')}</div>
-  <label class="mute" for="manDate" style="font-size:13px;font-weight:600">Date in</label><input class="field" id="manDate" type="date" min="${esc(lim.date)}" max="${esc(today.date)}" value="${esc(f.date||'')}" oninput="editManual()">
+  <label class="mute" for="manDate" style="font-size:13px;font-weight:600">Date in</label><input class="field" id="manDate" type="date" max="${esc(today.date)}" value="${esc(f.date||'')}" oninput="editManual()">
   <label class="mute" for="manTime" style="font-size:13px;font-weight:600">Time in (Eastern)</label><input class="field" id="manTime" type="time" value="${esc(f.time||'')}" oninput="editManual()">
-  <label class="mute" for="manOutDate" style="font-size:13px;font-weight:600">Date out</label><input class="field" id="manOutDate" type="date" min="${esc(lim.date)}" max="${esc(today.date)}" value="${esc(f.outDate||'')}" oninput="editManual()">
+  <label class="mute" for="manOutDate" style="font-size:13px;font-weight:600">Date out</label><input class="field" id="manOutDate" type="date" max="${esc(today.date)}" value="${esc(f.outDate||'')}" oninput="editManual()">
   <label class="mute" for="manOutTime" style="font-size:13px;font-weight:600">Time out (Eastern)</label><input class="field" id="manOutTime" type="time" value="${esc(f.outTime||'')}" oninput="editManual()">
   <div class="mute" style="font-size:12px;margin:-4px 0 10px">Optional. Leave blank to clock in and clock out later.</div>
   <label class="mute" for="manWhy" style="font-size:13px;font-weight:600">Reason (required)</label><input class="field" id="manWhy" maxlength="120" placeholder="e.g. forgot to clock in" value="${esc(f.reason||'')}" oninput="editManual()">
   ${f.err?`<div id="manErr" class="err-box" role="alert" style="margin-top:0;margin-bottom:10px">⚠️ ${esc(f.err)}</div>`:''}
-  <div class="mute" style="font-size:12px;margin-bottom:10px">Times are Eastern (America/New_York). Time in is not in the future and not more than 24 hours ago. A full shift is at most 16 hours.</div>
+  <div class="mute" style="font-size:12px;margin-bottom:10px">Times are Eastern (America/New_York). Not in the future. A full shift is at most 16 hours. Hours count in the week of the time in.</div>
   <div style="display:flex;gap:8px"><button type="button" class="big in" id="manGo" style="flex:1;height:52px;font-size:17px" onclick="submitManual()" ${f.busy?'disabled':''}>${f.busy?'<span class="spin"></span>':'Submit'}</button><button type="button" class="big" style="flex:none;width:110px;height:52px;font-size:16px;background:#1a2438;color:var(--ink)" onclick="closeManual()" ${f.busy?'disabled':''}>Cancel</button></div></div>`;}
 function manualTag(x,chip){const why=String((x&&x.manualReason)||'').trim();
  if(why)return ` <span class="${chip?'chip':''}" style="${chip?'background:#123044;padding:3px 8px;':''}color:#30B0F8;font-size:11px;font-weight:800" title="${esc(x.note||why)}">Manual</span>`;
