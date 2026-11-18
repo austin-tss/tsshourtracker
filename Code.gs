@@ -1,4 +1,4 @@
-// TSShourtracker backend: Google Apps Script bound to a Google Sheet. Code.gs v46.
+// TSShourtracker backend: Google Apps Script bound to a Google Sheet. Code.gs v47.
 // Deploy > New deployment > Web app, Execute as: Me, Access: Anyone. Paste the /exec URL into index.html (API const).
 const TZ='America/New_York';
 // Clock in/out mail always goes here. EMP to/cc must not send anywhere else.
@@ -68,8 +68,9 @@ function sh(){const ss=SpreadsheetApp.getActive();let s=ss.getSheetByName('Punch
 // one-time heal: format the PIN column as text and pad numbers like 123 -> '0123'
 function fixPinCol_(s,col){const n=s.getMaxRows();s.getRange(2,col,Math.max(1,n-1),1).setNumberFormat('@');const last=s.getLastRow();if(last<2)return;const r=s.getRange(2,col,last-1,1),v=r.getValues();let ch=false;
  const o=v.map(x=>{const p=pin_(x[0]);if(String(x[0])!==p){ch=true;}return [p];});if(ch)r.setValues(o);}
-function rows(code){return sh().getDataRange().getValues().slice(1).map((r,i)=>({row:i+2,code:pin_(r[0]),name:r[1],job:r[2],inT:r[3],outT:r[4],hours:r[5],note:String(r[8]||'')})).filter(r=>r.code===code);}
+function rows(code){return sh().getDataRange().getValues().slice(1).map((r,i)=>({row:i+2,code:pin_(r[0]),name:r[1],job:r[2],inT:r[3],outT:r[4],hours:r[5],note:String(r[8]||''),origIn:r[13]||''})).filter(r=>r.code===code);}
 function fmt(d){return Utilities.formatDate(new Date(d),TZ,'EEE MMM d, h:mm a')+' ET';}
+function origInLabel_(v){if(v==null||v==='')return '';try{const d=new Date(v);if(isNaN(d.getTime()))return '';return fmt(d);}catch(e){return '';}}
 function weekKey(d){const p=Utilities.formatDate(new Date(d),TZ,'yyyy-MM-dd-u').split('-').map(Number);const t=new Date(Date.UTC(p[0],p[1]-1,p[2]-(p[3]%7)));return Utilities.formatDate(t,'UTC','yyyy-MM-dd');}// week = Sunday 00:00 to Saturday 23:59:59 ET; key = Sunday date
 function summary(code){const e=EMP[code],rs=rows(code),weeks={},admin=e.admin===true;
  rs.filter(r=>r.outT).forEach(r=>{const k=weekKey(r.inT);(weeks[k]=weeks[k]||{week:k,hours:0,shifts:[]});weeks[k].hours+=Number(r.hours);weeks[k].shifts.push({job:r.job,in:fmt(r.inT),out:fmt(r.outT),hours:+Number(r.hours).toFixed(2),manual:!!r.note});});
@@ -221,11 +222,11 @@ function managerData(e,p){if(!e||e.manager!==true)return {error:'Not authorized'
 function managerData_(q){
  const ss=SpreadsheetApp.getActive(),now=new Date(),cut=new Date(now.getTime()-14*864e5),thisW=weekKey(now),prevW=weekKey(new Date(now.getTime()-7*864e5));
  const tab=n=>{const t=ss.getSheetByName(n);return t?t.getDataRange().getValues().slice(1):[];},ts=v=>v instanceof Date?Utilities.formatDate(v,TZ,'yyyy-MM-dd HH:mm:ss'):String(v);
- const P=tab('Punches').map((r,i)=>{const flag=String(r[9]||'').trim().toLowerCase(),why=String(r[10]||'').trim(),outFlag=String(r[12]||'').trim().toLowerCase();return {row:i+2,note:String(r[8]||''),manualFlag:flag==='yes'||flag==='y'||flag==='1'||flag==='true',manualReason:why,submitted:r[11]||'',manualOut:outFlag==='yes'||outFlag==='y'||outFlag==='1'||outFlag==='true',code:pin_(r[0]),name:r[1],job:r[2],inT:r[3],outT:r[4],hours:Number(r[5]||0),photos:Number(r[6]||0),folder:r[7]||''};}).filter(r=>r.inT);
- const onNow=P.filter(r=>!r.outT).map(r=>({row:r.row,name:r.name,code:r.code,job:r.job,since:fmt(r.inT),inIso:String(r.inT),hours:+((now-new Date(r.inT))/36e5).toFixed(2),manual:r.manualFlag||!!r.note,manualReason:r.manualReason,note:r.note}));
+ const P=tab('Punches').map((r,i)=>{const flag=String(r[9]||'').trim().toLowerCase(),why=String(r[10]||'').trim(),outFlag=String(r[12]||'').trim().toLowerCase();return {row:i+2,note:String(r[8]||''),manualFlag:flag==='yes'||flag==='y'||flag==='1'||flag==='true',manualReason:why,submitted:r[11]||'',manualOut:outFlag==='yes'||outFlag==='y'||outFlag==='1'||outFlag==='true',originalIn:origInLabel_(r[13]),code:pin_(r[0]),name:r[1],job:r[2],inT:r[3],outT:r[4],hours:Number(r[5]||0),photos:Number(r[6]||0),folder:r[7]||''};}).filter(r=>r.inT);
+ const onNow=P.filter(r=>!r.outT).map(r=>({row:r.row,name:r.name,code:r.code,job:r.job,since:fmt(r.inT),inIso:String(r.inT),hours:+((now-new Date(r.inT))/36e5).toFixed(2),manual:r.manualFlag||!!r.note,manualReason:r.manualReason,note:r.note,originalIn:r.originalIn}));
  const weeks={};P.filter(r=>r.outT).forEach(r=>{const k=weekKey(r.inT);if(k!==thisW&&k!==prevW)return;const id=r.code+'|'+k;(weeks[id]=weeks[id]||{code:r.code,week:k,hours:0}).hours+=r.hours;});
  const totals=payCodes_().map(c=>{const x=EMP[c],elig=otEligible_(x),f=k=>{const h=(weeks[c+'|'+k]||{hours:0}).hours,p=weekPay_(h,x.rate,elig);return {hours:+h.toFixed(2),overtime:p.overtime,pay:p.pay};};return {code:c,name:x.name,rate:x.rate,otEligible:elig,thisWeek:f(thisW),lastWeek:f(prevW)};});
- const shifts=P.filter(r=>new Date(r.inT)>=cut).map(r=>{const emp=EMP[r.code]||{},paid=paid_(emp);return {row:r.row,note:r.note,manual:r.manualFlag||!!r.note,manualReason:r.manualReason,manualOut:!!r.manualOut,outIso:String(r.outT||''),name:r.name,code:r.code,job:r.job,in:fmt(r.inT),inIso:String(r.inT),out:r.outT?fmt(r.outT):'',hours:+r.hours.toFixed(2),pay:paid?+(r.hours*(emp.rate||0)).toFixed(2):null,photos:r.photos,folder:r.folder};}).reverse();
+ const shifts=P.filter(r=>new Date(r.inT)>=cut).map(r=>{const emp=EMP[r.code]||{},paid=paid_(emp);return {row:r.row,note:r.note,manual:r.manualFlag||!!r.note,manualReason:r.manualReason,manualOut:!!r.manualOut,originalIn:r.originalIn,outIso:String(r.outT||''),name:r.name,code:r.code,job:r.job,in:fmt(r.inT),inIso:String(r.inT),out:r.outT?fmt(r.outT):'',hours:+r.hours.toFixed(2),pay:paid?+(r.hours*(emp.rate||0)).toFixed(2):null,photos:r.photos,folder:r.folder};}).reverse();
  const photos=[],ckMap={},t0=Date.now(),cap=()=>photos.length<200&&Date.now()-t0<8000;try{jobsList().forEach(j=>{const mf=masterFolder(j),fs=mf.getFolders();while(fs.hasNext()&&cap()){const rf=fs.next(),it=rf.getFiles();while(it.hasNext()&&Date.now()-t0<8000){const f=it.next(),d=f.getDateCreated(),nm=f.getName(),hit=ckMatchItem_(rf.getName(),nm);
   if(hit){const k=j+'|'+rf.getName();(ckMap[k]=ckMap[k]||{job:j,room:rf.getName(),got:{}}).got[hit]=1;}
   if(d>=cut&&cap())photos.push({job:j,room:rf.getName(),name:nm,url:f.getUrl(),time:Utilities.formatDate(d,TZ,'yyyy-MM-dd HH:mm'),checklist:!!hit||nm.indexOf(rf.getName()+' ')!==0});}}});}catch(x){}
@@ -235,19 +236,41 @@ function managerData_(q){
  const support=tab('Support').map(r=>({time:ts(r[0]),code:pin_(r[1]),name:r[2],question:r[3],photos:r[4],answer:r[5],offTopic:!!r[6]})).reverse().slice(0,200);
  const weeksAvail=[...new Set(P.map(r=>weekKey(r.inT)).concat([thisW]))].sort().reverse(),selW=weeksAvail.indexOf(String(q.week||''))>=0?String(q.week):thisW;
  const week={week:selW,list:payCodes_().map(c=>{const x=EMP[c],elig=otEligible_(x),ss=P.filter(r=>r.code===c&&weekKey(r.inT)===selW),h=ss.filter(r=>r.outT).reduce((a,r)=>a+r.hours,0),p=weekPay_(h,x.rate,elig);
-  return {code:c,name:x.name,rate:x.rate,otEligible:elig,hours:+h.toFixed(2),overtime:p.overtime,pay:p.pay,shifts:ss.map(r=>({row:r.row,job:r.job,in:fmt(r.inT),out:r.outT?fmt(r.outT):'',open:!r.outT,hours:+r.hours.toFixed(2),manual:r.manualFlag||!!r.note,manualReason:r.manualReason,manualOut:!!r.manualOut,note:r.note}))};})};
+  return {code:c,name:x.name,rate:x.rate,otEligible:elig,hours:+h.toFixed(2),overtime:p.overtime,pay:p.pay,shifts:ss.map(r=>({row:r.row,job:r.job,in:fmt(r.inT),out:r.outT?fmt(r.outT):'',open:!r.outT,hours:+r.hours.toFixed(2),manual:r.manualFlag||!!r.note,manualReason:r.manualReason,manualOut:!!r.manualOut,originalIn:r.originalIn,note:r.note}))};})};
  return {ok:true,week:week,weeks:weeksAvail,jobs:jobsList(),addrs:addrMap(),folders:folderMap(),generated:fmt(now),thisWeek:thisW,lastWeek:prevW,onNow,totals,shifts,photos,checklistRooms:checklistRooms,roomDeletions:roomDelRows_(),receipts,support};}
 // Room delete: trash the room Drive folder (recoverable 30 days) and log who did it. Any logged-in employee.
 function roomDelSheet_(){const ss=SpreadsheetApp.getActive();let s=ss.getSheetByName('Room deletions');if(!s){s=ss.insertSheet('Room deletions');s.appendRow(['time_et','code','name','job','folder','photos']);s.setFrozenRows(1);}return s;}
 function roomDelRows_(){try{const s=roomDelSheet_(),v=s.getDataRange().getValues().slice(1);return v.filter(r=>r[0]).slice(-80).reverse().map(r=>({time:r[0] instanceof Date?Utilities.formatDate(r[0],TZ,'yyyy-MM-dd HH:mm:ss'):String(r[0]),code:pin_(r[1]),name:r[2],job:r[3],folder:r[4],photos:Number(r[5]||0)}));}catch(x){return [];}}
 function countRoomFiles_(folder){let n=0;const it=folder.getFiles();while(it.hasNext()){it.next();n++;}return n;}
 function findRoomFolder_(job, room, folderName){const parent=masterFolder(job),name=String(folderName||'').trim()||photoFolderName_(room);if(!name||name==='Room 0')return null;const it=parent.getFoldersByName(name);while(it.hasNext()){const f=it.next();if(!f.isTrashed())return f;}return null;}
-// Shared room list: every subfolder of the school Drive folder, same list for everyone clocked in there.
+// Shared rooms: source of truth is the school's Drive folder subfolders, indexed on the Rooms sheet. Not per user.
+const LEGACY_ROOMS=['102','103','104','105','106','107','108','109','110','116'];
 function roomKeyFromName_(name){const s=String(name||'').trim();if(!s)return '';if(s.indexOf('Room ')===0){const rest=s.slice(5).trim();if(/^\d+$/.test(rest))return String(+rest);if(rest)return '~'+rest;}return '~'+s;}
-function listRooms_(job){job=String(job||'').trim();if(!isJob(job))return {error:'School not found'};const it=masterFolder(job).getFolders(),seen={},keys=[];
- while(it.hasNext()){const f=it.next();if(f.isTrashed())continue;const k=roomKeyFromName_(f.getName());if(k&&!seen[k]){seen[k]=1;keys.push(k);}}
- keys.sort(function(a,b){const as=a.charAt(0)==='~'?a.slice(1):a,bs=b.charAt(0)==='~'?b.slice(1):b,an=/^\d+$/.test(as),bn=/^\d+$/.test(bs);if(an&&bn)return +as-+bs;if(an)return -1;if(bn)return 1;return as<bs?-1:as>bs?1:0;});
- return {ok:true,job:job,rooms:keys};}
+function roomsSheet_(){const ss=SpreadsheetApp.getActive();let s=ss.getSheetByName('Rooms');if(!s){s=ss.insertSheet('Rooms');s.appendRow(['job','room_key','folder_name','created_by','created_et','removed']);s.setFrozenRows(1);}return s;}
+function roomRows_(){const s=roomsSheet_(),last=s.getLastRow();if(last<2)return [];return s.getRange(2,1,last-1,6).getValues().map(function(r,i){return {row:i+2,job:String(r[0]||'').trim(),key:String(r[1]||'').trim(),folder:String(r[2]||'').trim(),by:String(r[3]||''),at:r[4],removed:String(r[5]||'').trim()};});}
+function roomRemoved_(job,key,folder){return roomRows_().some(function(r){return r.job===job&&r.removed&&(r.key===key||(folder&&r.folder===folder));});}
+function roomIndexUpsert_(job,key,folder,by){if(roomRemoved_(job,key,folder))return;const s=roomsSheet_(),rows=roomRows_();
+ for(let i=0;i<rows.length;i++)if(rows[i].job===job&&rows[i].key===key&&!rows[i].removed){if(rows[i].folder!==folder)s.getRange(rows[i].row,3).setValue(folder);return;}
+ s.appendRow([job,key,folder,by||'',Utilities.formatDate(new Date(),TZ,'yyyy-MM-dd HH:mm:ss'),'']);}
+function roomIndexRemove_(job,key,folder){const s=roomsSheet_(),rows=roomRows_();let hit=false;const stamp='removed '+Utilities.formatDate(new Date(),TZ,'yyyy-MM-dd HH:mm:ss');
+ rows.forEach(function(r){if(r.job===job&&!r.removed&&(r.key===key||r.folder===folder)){s.getRange(r.row,6).setValue(stamp);hit=true;}});
+ if(!hit)s.appendRow([job,key||roomKeyFromName_(folder),folder,'','',stamp]);}
+function legacyJob_(){const v=mastersSheet().getDataRange().getValues();let loose='';
+ for(let i=1;i<v.length;i++){const job=String(v[i][0]||'').trim();if(!job||String(v[i][3]||'').trim())continue;const folder=String(v[i][2]||'').trim(),a=job.toLowerCase(),b=folder.toLowerCase();
+  if(a==='legacy echs (tx)'||b==='legacy echs (tx)')return job;
+  if(!loose&&((/legacy/i.test(job)&&/echs/i.test(job))||(/legacy/i.test(folder)&&/echs/i.test(folder))))loose=job;}
+ return loose;}
+function ensureLegacyRooms_(){const pr=PropertiesService.getScriptProperties();if(pr.getProperty('LEGACY_ECHS_ROOMS')==='1')return;const job=legacyJob_();if(!job)return;
+ const parent=masterFolder(job);LEGACY_ROOMS.forEach(function(key){if(roomRemoved_(job,key,photoFolderName_(key)))return;const f=sub(parent,photoFolderName_(key));shareDriveEditor_(f);roomIndexUpsert_(job,key,f.getName(),'Legacy ECHS migration');});
+ pr.setProperty('LEGACY_ECHS_ROOMS','1');}
+function sortRoomKeys_(keys){keys.sort(function(a,b){const as=a.charAt(0)==='~'?a.slice(1):a,bs=b.charAt(0)==='~'?b.slice(1):b,an=/^\d+$/.test(as),bn=/^\d+$/.test(bs);if(an&&bn)return +as-+bs;if(an)return -1;if(bn)return 1;return as<bs?-1:as>bs?1:0;});return keys;}
+function listRooms_(job){job=String(job||'').trim();if(!isJob(job))return {error:'School not found'};try{ensureLegacyRooms_();}catch(e){}
+ const parent=masterFolder(job),seen={},keys=[];let rows;try{rows=roomRows_();}catch(e){rows=[];}
+ function gone(key,folder){return rows.some(function(r){return r.job===job&&r.removed&&(r.key===key||(folder&&r.folder===folder));});}
+ const it=parent.getFolders();while(it.hasNext()){const f=it.next();if(f.isTrashed())continue;const k=roomKeyFromName_(f.getName());if(!k||seen[k]||gone(k,f.getName()))continue;seen[k]=1;keys.push(k);
+  if(!rows.some(function(r){return r.job===job&&r.key===k&&!r.removed;})){try{roomIndexUpsert_(job,k,f.getName(),'');rows.push({job:job,key:k,folder:f.getName(),removed:''});}catch(e){}}}
+ rows.forEach(function(r){if(r.job!==job||r.removed||!r.key||seen[r.key])return;try{const f=sub(parent,r.folder||photoFolderName_(r.key));if(!f||f.isTrashed())return;shareDriveEditor_(f);seen[r.key]=1;keys.push(r.key);}catch(e){}});
+ return {ok:true,job:job,rooms:sortRoomKeys_(keys),source:'drive'};}
 function parseRoomTokens_(raw){const parts=String(raw||'').split(/[,;\n]+/),out=[],seen={};
  function push(token){let key;if(/^\d+$/.test(token))key=String(+token);else{const n=String(token).replace(/^~/,'').replace(/[\u0000-\u001f\u007f\/\\]/g,'').replace(/[:*?"<>|`']/g,'').replace(/\s+/g,' ').trim().slice(0,40);if(!n)return;key='~'+n;}if(!key||seen[key])return;seen[key]=1;out.push(key);}
  for(let i=0;i<parts.length;i++){const t=parts[i].trim();if(!t)continue;const range=t.match(/^(\d+)\s*[-–—]\s*(\d+)$/);
@@ -255,7 +278,13 @@ function parseRoomTokens_(raw){const parts=String(raw||'').split(/[,;\n]+/),out=
   else{push(t);if(out.length>200)return {error:'Add at most 200 rooms at a time.'};}}
  if(!out.length)return {error:'Type at least one room.'};return {rooms:out};}
 function addRooms_(p,e){const job=String(p.job||'').trim();if(!isJob(job))return {error:'School not found'};const parsed=parseRoomTokens_(p.rooms!=null?p.rooms:p.room);if(parsed.error)return parsed;
- const parent=masterFolder(job);parsed.rooms.forEach(function(key){shareDriveEditor_(sub(parent,photoFolderName_(key)));});const listed=listRooms_(job);listed.added=parsed.rooms;return listed;}
+ let parent;try{parent=masterFolder(job);}catch(err){return {error:'Could not open the school Drive folder for '+job+'.'};}
+ const made=[],failed=[],skipped=[];
+ parsed.rooms.forEach(function(key){if(roomRemoved_(job,key,photoFolderName_(key))){skipped.push(key);return;}
+  try{const f=sub(parent,photoFolderName_(key));if(!f||f.isTrashed())throw Error('Drive did not return a folder');shareDriveEditor_(f);roomIndexUpsert_(job,key,f.getName(),e?e.name:'');made.push(key);}catch(err){failed.push(key.charAt(0)==='~'?key.slice(1):key);}});
+ if(failed.length&&!made.length)return {error:'Could not create the Drive folder for '+failed.join(', ')+'. Those rooms were not added.'};
+ if(!made.length&&skipped.length)return {error:'That room was deleted and was not added back.'};
+ const listed=listRooms_(job);if(listed.error)return listed;listed.added=made;if(failed.length)listed.failed=failed;return listed;}
 function delRoom_(p,e){try{
  const job=String(p.job||'').trim();if(!isJob(job))return {error:'School not found'};
  const room=p.room==null?'':String(p.room),folderName=String(p.folder||'').trim();
@@ -265,6 +294,7 @@ function delRoom_(p,e){try{
  const n=countRoomFiles_(f),label=f.getName();
  if(!p.confirm)return {ok:true,preview:true,job:job,label:label,folder:label,photos:n};
  f.setTrashed(true);
+ try{roomIndexRemove_(job, room||roomKeyFromName_(label), label);}catch(e2){}
  roomDelSheet_().appendRow([Utilities.formatDate(new Date(),TZ,'yyyy-MM-dd HH:mm:ss'),pinW_(p.code),e.name,job,label,n]);
  return {ok:true,deleted:true,job:job,label:label,folder:label,photos:n};
 }catch(x){return {error:'Could not delete that room. '+(x&&x.message?x.message:x)};}}
@@ -293,6 +323,7 @@ function punchExtraCols_(){const s=sh();
  if(String(s.getRange(1,11).getValue())!=='manual_reason')s.getRange(1,11).setValue('manual_reason');
  if(String(s.getRange(1,12).getValue())!=='submitted_at')s.getRange(1,12).setValue('submitted_at');
  if(String(s.getRange(1,13).getValue())!=='manual_out')s.getRange(1,13).setValue('manual_out');
+ if(String(s.getRange(1,14).getValue())!=='original_in')s.getRange(1,14).setValue('original_in');
  return s;}
 function hmKey_(t){const m=String(t||'').trim().match(/^(\d{1,2}):(\d{2})$/);if(!m)return '';const h=+m[1],mm=+m[2];if(h>23||mm>59)return '';return ('0'+h).slice(-2)+':'+m[2];}
 function manualWhen_(date,hm){const d=mgrTime_(date,hm);if(!d||Utilities.formatDate(d,TZ,'yyyy-MM-dd HH:mm')!==date+' '+hm)return null;return d;}
@@ -322,6 +353,27 @@ function manualIn(p,e){
  s.appendRow([pinW_(p.code),e.name,job,entered.toISOString(),'','','','','Manual clock in: '+why+' (submitted '+fmt(now)+')','yes',why,now.toISOString()]);
  MailApp.sendEmail(CLOCK_TO,'TSShourtracker: MANUAL clock in - '+job,e.name+' clocked in (MANUAL)\nJob: '+job+'\nEntered time: '+fmt(entered)+'\nReason: '+why+'\nSubmitted: '+fmt(now));
  const o=summary(p.code);o.manualIn=true;return o;}
+// Move the open punch's clock-in earlier. Hours, pay, and weekKey(inT) follow the new start. Column N keeps the first original time.
+function adjustStart(p,e){
+ const why=String(p.reason||'').replace(/[\u0000-\u001f]/g,' ').replace(/\s+/g,' ').trim().slice(0,120);
+ if(!why)return {error:'Enter a short reason (for example, forgot to clock in).'};
+ const date=String(p.date||'').trim(),hm=hmKey_(p.time),entered=hm?manualWhen_(date,hm):null;
+ if(!entered)return {error:'Enter a valid time in.'};
+ const now=new Date(),entKey=Utilities.formatDate(entered,TZ,'yyyy-MM-dd HH:mm'),nowKey=Utilities.formatDate(now,TZ,'yyyy-MM-dd HH:mm');
+ if(entKey>nowKey)return {error:'Time in can’t be in the future.'};
+ const all=rows(p.code),open=all.find(function(r){return !r.outT;});
+ if(!open)return {error:'You are not clocked in.'};
+ const cur=new Date(open.inT);if(isNaN(cur.getTime()))return {error:'That shift could not be read. Tell Austin.'};
+ if(entered.getTime()>=cur.getTime())return {error:'The new start has to be earlier than '+fmt(cur)+'.'};
+ if(now.getTime()-entered.getTime()>16*60*60*1000)return {error:'Shift can’t be longer than 16 hours.'};
+ const hit=all.find(function(r){if(r.row===open.row||!r.outT)return false;const a=new Date(r.inT),b=new Date(r.outT);return !isNaN(a.getTime())&&!isNaN(b.getTime())&&a<now&&b>entered;});
+ if(hit)return {error:'That time overlaps your shift at '+hit.job+' ('+fmt(hit.inT)+' – '+fmt(hit.outT)+').'};
+ const s=punchExtraCols_(),was=fmt(cur),note=(open.note?open.note+' | ':'')+'Start adjusted from '+was;
+ s.getRange(open.row,4).setValue(entered.toISOString());
+ s.getRange(open.row,9,1,4).setValues([[note,'yes',why,now.toISOString()]]);
+ if(!open.origIn)s.getRange(open.row,14).setValue(cur.toISOString());
+ MailApp.sendEmail(CLOCK_TO,'TSShourtracker: START ADJUSTED - '+open.job,e.name+' adjusted the start time\nJob: '+open.job+'\nWas: '+was+'\nNow: '+fmt(entered)+'\nReason: '+why+'\nSubmitted: '+fmt(now));
+ const o=summary(p.code);o.startAdjusted=true;o.was=was;o.nowIn=fmt(entered);return o;}
 // ===== QuickBooks Online (manager only). Script Properties: QBO_CLIENT_ID, QBO_CLIENT_SECRET (Intuit developer app), optional QBO_ENV=sandbox.
 // Tokens/realm live in Script Properties (QBO_TOKENS, QBO_REALM). Redirect URI = this web app's /exec URL (handled by doGet).
 const QBO_SCOPE='com.intuit.quickbooks.accounting',QBO_MINOR='75';
@@ -406,6 +458,7 @@ function doPost(ev){let lock=null;try{
  if(p.action==='mileage'){if(!e.mileage)return out({error:'Mileage is not enabled for this account'});
   try{if(p.save){lock=LockService.getScriptLock();lock.waitLock(20000);return out(mileageSave(p,e));}return out(mileageGet(p.code));}catch(x){return out({error:p.save?'Could not save mileage. Try again.':'Could not load mileage. Try again.'});}}
  if(p.action==='manualIn'){lock=LockService.getScriptLock();lock.waitLock(20000);return out(manualIn(p,e));}
+ if(p.action==='adjustStart'){lock=LockService.getScriptLock();lock.waitLock(20000);return out(adjustStart(p,e));}
  if(p.action==='punch'){lock=LockService.getScriptLock();lock.waitLock(20000);const open=rows(p.code).find(r=>!r.outT),now=new Date();
   if(!open){if(!isJob(p.job))return out({error:'Pick a school'});
    sh().appendRow([pinW_(p.code),e.name,p.job,now.toISOString(),'','']);
