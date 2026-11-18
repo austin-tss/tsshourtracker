@@ -1,4 +1,4 @@
-// TSShourtracker backend: Google Apps Script bound to a Google Sheet. Code.gs v47.
+// TSShourtracker backend: Google Apps Script bound to a Google Sheet. Code.gs v48.
 // Deploy > New deployment > Web app, Execute as: Me, Access: Anyone. Paste the /exec URL into index.html (API const).
 const TZ='America/New_York';
 // Clock in/out mail always goes here. EMP to/cc must not send anywhere else.
@@ -260,17 +260,27 @@ function legacyJob_(){const v=mastersSheet().getDataRange().getValues();let loos
   if(a==='legacy echs (tx)'||b==='legacy echs (tx)')return job;
   if(!loose&&((/legacy/i.test(job)&&/echs/i.test(job))||(/legacy/i.test(folder)&&/echs/i.test(folder))))loose=job;}
  return loose;}
-function ensureLegacyRooms_(){const pr=PropertiesService.getScriptProperties();if(pr.getProperty('LEGACY_ECHS_ROOMS')==='1')return;const job=legacyJob_();if(!job)return;
- const parent=masterFolder(job);LEGACY_ROOMS.forEach(function(key){if(roomRemoved_(job,key,photoFolderName_(key)))return;const f=sub(parent,photoFolderName_(key));shareDriveEditor_(f);roomIndexUpsert_(job,key,f.getName(),'Legacy ECHS migration');});
- pr.setProperty('LEGACY_ECHS_ROOMS','1');}
+function ensureLegacyRooms_(){const pr=PropertiesService.getScriptProperties();if(pr.getProperty('LEGACY_ECHS_ROOMS')==='1')return {ok:true,already:true};const job=legacyJob_();if(!job)return {ok:true,missing:true};
+ let parent;try{parent=masterFolder(job);}catch(e){return {ok:false,error:'Could not open the Legacy ECHS (TX) Drive folder.'};}
+ let rows=[];try{rows=roomRows_();}catch(e){}
+ function gone(key,folder){return rows.some(function(r){return r.job===job&&r.removed&&(r.key===key||r.folder===folder);});}
+ const failed=[];
+ LEGACY_ROOMS.forEach(function(key){const folder=photoFolderName_(key);if(gone(key,folder))return;
+  try{const f=sub(parent,folder);if(!f||f.isTrashed())throw Error('Drive did not return a folder');shareDriveEditor_(f);roomIndexUpsert_(job,key,f.getName(),'Legacy ECHS migration');}catch(e){failed.push(key);}});
+ if(failed.length)return {ok:false,job:job,failed:failed,error:'Could not create the Drive folder for '+failed.join(', ')+'.'};
+ pr.setProperty('LEGACY_ECHS_ROOMS','1');return {ok:true,job:job,rooms:LEGACY_ROOMS.slice()};}
+function syncRoomIndex_(job,nameByKey){const rows=roomRows_(),have={},removed={};rows.forEach(function(r){if(r.job!==job)return;if(r.removed)removed[r.key]=1;else if(r.key)have[r.key]=1;});
+ const add=[];Object.keys(nameByKey).forEach(function(k){if(have[k]||removed[k])return;add.push([job,k,nameByKey[k],'',Utilities.formatDate(new Date(),TZ,'yyyy-MM-dd HH:mm:ss'),'']);});
+ if(add.length){const s=roomsSheet_(),start=Math.max(s.getLastRow()+1,2);s.getRange(start,1,add.length,6).setValues(add);}return removed;}
 function sortRoomKeys_(keys){keys.sort(function(a,b){const as=a.charAt(0)==='~'?a.slice(1):a,bs=b.charAt(0)==='~'?b.slice(1):b,an=/^\d+$/.test(as),bn=/^\d+$/.test(bs);if(an&&bn)return +as-+bs;if(an)return -1;if(bn)return 1;return as<bs?-1:as>bs?1:0;});return keys;}
-function listRooms_(job){job=String(job||'').trim();if(!isJob(job))return {error:'School not found'};try{ensureLegacyRooms_();}catch(e){}
- const parent=masterFolder(job),seen={},keys=[];let rows;try{rows=roomRows_();}catch(e){rows=[];}
- function gone(key,folder){return rows.some(function(r){return r.job===job&&r.removed&&(r.key===key||(folder&&r.folder===folder));});}
- const it=parent.getFolders();while(it.hasNext()){const f=it.next();if(f.isTrashed())continue;const k=roomKeyFromName_(f.getName());if(!k||seen[k]||gone(k,f.getName()))continue;seen[k]=1;keys.push(k);
-  if(!rows.some(function(r){return r.job===job&&r.key===k&&!r.removed;})){try{roomIndexUpsert_(job,k,f.getName(),'');rows.push({job:job,key:k,folder:f.getName(),removed:''});}catch(e){}}}
- rows.forEach(function(r){if(r.job!==job||r.removed||!r.key||seen[r.key])return;try{const f=sub(parent,r.folder||photoFolderName_(r.key));if(!f||f.isTrashed())return;shareDriveEditor_(f);seen[r.key]=1;keys.push(r.key);}catch(e){}});
- return {ok:true,job:job,rooms:sortRoomKeys_(keys),source:'drive'};}
+function listRooms_(job){try{job=String(job||'').trim();if(!isJob(job))return {error:'School not found'};
+ let parent;try{parent=masterFolder(job);}catch(err){return {error:'Could not open the school Drive folder for '+job+'.'};}
+ const nameByKey={},keys=[];
+ try{const it=parent.getFolders();while(it.hasNext()){const f=it.next();if(f.isTrashed())continue;const k=roomKeyFromName_(f.getName());if(!k||nameByKey[k])continue;nameByKey[k]=f.getName();keys.push(k);}}
+ catch(err){return {error:'Could not read the Drive folders for '+job+'.'};}
+ let removed={};try{removed=syncRoomIndex_(job,nameByKey);}catch(e){}
+ return {ok:true,job:job,rooms:sortRoomKeys_(keys.filter(function(k){return !removed[k];})),source:'drive'};
+}catch(e){return {error:'Could not load rooms. '+(e&&e.message?e.message:e)};}}
 function parseRoomTokens_(raw){const parts=String(raw||'').split(/[,;\n]+/),out=[],seen={};
  function push(token){let key;if(/^\d+$/.test(token))key=String(+token);else{const n=String(token).replace(/^~/,'').replace(/[\u0000-\u001f\u007f\/\\]/g,'').replace(/[:*?"<>|`']/g,'').replace(/\s+/g,' ').trim().slice(0,40);if(!n)return;key='~'+n;}if(!key||seen[key])return;seen[key]=1;out.push(key);}
  for(let i=0;i<parts.length;i++){const t=parts[i].trim();if(!t)continue;const range=t.match(/^(\d+)\s*[-–—]\s*(\d+)$/);
@@ -449,7 +459,8 @@ function doPost(ev){let lock=null;try{
  if(p.action==='setaddr'){lock=LockService.getScriptLock();lock.waitLock(20000);return out(setAddr(p));}
  if(p.action==='addjob'){lock=LockService.getScriptLock();lock.waitLock(20000);return out(addJob(p.name));}
  if(p.action==='ask')return out(ask(p,e));
- if(p.action==='rooms')return out(listRooms_(p.job));// shared room list for whoever is clocked in at this school
+ if(p.action==='rooms')return out(listRooms_(p.job));// shared room list for whoever is clocked in at this school. Does not create folders.
+ if(p.action==='seedlegacy')return out(ensureLegacyRooms_());// one-time Legacy ECHS (TX) folders; never blocks the room list
  if(p.action==='addrooms'){lock=LockService.getScriptLock();lock.waitLock(20000);return out(addRooms_(p,e));}// any employee; creates Drive subfolders everyone can see
  if(p.action==='delroom'){lock=LockService.getScriptLock();lock.waitLock(20000);return out(delRoom_(p,e));}// any employee; trashes the room folder
  if(p.action==='photo')return out(uploadPhoto(p,e));
