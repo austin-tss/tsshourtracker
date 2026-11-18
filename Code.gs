@@ -1,4 +1,4 @@
-// TSShourtracker backend: Google Apps Script bound to a Google Sheet. Code.gs v48.
+// TSShourtracker backend: Google Apps Script bound to a Google Sheet. Code.gs v49.
 // Deploy > New deployment > Web app, Execute as: Me, Access: Anyone. Paste the /exec URL into index.html (API const).
 const TZ='America/New_York';
 // Clock in/out mail always goes here. EMP to/cc must not send anywhere else.
@@ -121,8 +121,10 @@ function cleanName(n){return String(n||'').replace(/[\\/:*?"<>|]/g,'').trim().sl
 function renameMaster(job,name){if(!isJob(job))return {error:'Unknown job'};name=cleanName(name);if(!name)return {error:'Enter a name'};
  const f=masterFolder(job);f.setName(name);const m=mastersSheet(),v=m.getDataRange().getValues();
  for(let i=1;i<v.length;i++)if(v[i][0]===job)m.getRange(i+1,3).setValue(name);return {ok:true,master:name,url:f.getUrl()};}
-// Photo folder under the job: room number '204' -> 'Room 204' (unchanged); custom name sent as '~Gym' -> 'Gym'. Strips / \ control chars and Drive-unsafe chars, max 40.
-function photoFolderName_(raw){const s=String(raw==null?'':raw);if(s.charAt(0)==='~'){const n=s.slice(1).replace(/[\u0000-\u001f\u007f\/\\]/g,'').replace(/[:*?"<>|`']/g,'').replace(/\s+/g,' ').trim().slice(0,40);return n||'Unnamed';}let v=s.trim().replace(/^(room|rm)\.?\s*/i,'').replace(/[^\w .-]/g,'').slice(0,40);if(/^\d+$/.test(v))v=String(+v);return 'Room '+(v||'0');}
+// Drive folder name. Digits only stay 'Room 104' (the digit string is not passed through Number(), so '104' still matches). Any other name is the folder itself: 'Gym A', '102-B', 'Rm #5 / Lab' -> 'Rm #5 - Lab'. / and \ become '-'; other characters Drive cannot store are dropped. Max 60.
+function sanitizeRoom_(s){return String(s||'').replace(/[\u0000-\u001f\u007f]/g,'').replace(/[\\/]/g,'-').replace(/[:*?"<>|]/g,'').replace(/\s+/g,' ').trim().slice(0,60);}
+function photoFolderName_(raw){const s=String(raw==null?'':raw);if(s.charAt(0)==='~'){const n=sanitizeRoom_(s.slice(1));return n||'Unnamed';}
+ const v=sanitizeRoom_(s),bare=v.replace(/^(room|rm)\.?\s+/i,'');if(bare!==v&&/^\d+$/.test(bare))return 'Room '+bare;if(/^\d+$/.test(v))return 'Room '+v;return v;}
 function sessionRow(code,inIso){return rows(code).find(r=>String(r.inT)===String(inIso));}
 // Install checklist file names: "104 - MS-700.jpg", then "104 - MS-700 (2).jpg". Slash in a label becomes a hyphen.
 const CK_ITEMS=['SN and MAC','MS-700','Service Loops','Speakers','ITC/Call Button'];
@@ -134,7 +136,7 @@ function nextCkName_(folder, base){if(!folder.getFilesByName(base+'.jpg').hasNex
 function uploadPhoto(p,e){if(!p.data)return {error:'Photo data missing'};const r=sessionRow(p.code,p.inIso);// session row may be gone (deleted/edited shift): still save the photo, don't strand it
  const job=r?r.job:(isJob(p.job)?p.job:jobsList()[0]);
  const folder=photoFolderName_(p.room),sf=masterFolder(job),rf=sub(sf,folder);shareDriveEditor_(rf);
- const raw=p.numbered?String(p.fname||'').replace(/\//g,'-'):String(p.fname||'');
+ const raw=p.numbered?String(p.fname||'').replace(/[\\/]/g,'-'):String(p.fname||'');
  const fn=raw?cleanName(raw):'';// AE checklist: custom file name, retake replaces. Install checklist (numbered): keep extras as (2), (3).
  let name;
  if(p.numbered){const base=fn||'Photo';const lock=LockService.getScriptLock();lock.waitLock(20000);
@@ -242,10 +244,10 @@ function managerData_(q){
 function roomDelSheet_(){const ss=SpreadsheetApp.getActive();let s=ss.getSheetByName('Room deletions');if(!s){s=ss.insertSheet('Room deletions');s.appendRow(['time_et','code','name','job','folder','photos']);s.setFrozenRows(1);}return s;}
 function roomDelRows_(){try{const s=roomDelSheet_(),v=s.getDataRange().getValues().slice(1);return v.filter(r=>r[0]).slice(-80).reverse().map(r=>({time:r[0] instanceof Date?Utilities.formatDate(r[0],TZ,'yyyy-MM-dd HH:mm:ss'):String(r[0]),code:pin_(r[1]),name:r[2],job:r[3],folder:r[4],photos:Number(r[5]||0)}));}catch(x){return [];}}
 function countRoomFiles_(folder){let n=0;const it=folder.getFiles();while(it.hasNext()){it.next();n++;}return n;}
-function findRoomFolder_(job, room, folderName){const parent=masterFolder(job),name=String(folderName||'').trim()||photoFolderName_(room);if(!name||name==='Room 0')return null;const it=parent.getFoldersByName(name);while(it.hasNext()){const f=it.next();if(!f.isTrashed())return f;}return null;}
+function findRoomFolder_(job, room, folderName){const parent=masterFolder(job),name=String(folderName||'').trim()||photoFolderName_(room);if(!name||name==='Room 0'||name==='Unnamed')return null;const it=parent.getFoldersByName(name);while(it.hasNext()){const f=it.next();if(!f.isTrashed())return f;}return null;}
 // Shared rooms: source of truth is the school's Drive folder subfolders, indexed on the Rooms sheet. Not per user.
 const LEGACY_ROOMS=['102','103','104','105','106','107','108','109','110','116'];
-function roomKeyFromName_(name){const s=String(name||'').trim();if(!s)return '';if(s.indexOf('Room ')===0){const rest=s.slice(5).trim();if(/^\d+$/.test(rest))return String(+rest);if(rest)return '~'+rest;}return '~'+s;}
+function roomKeyFromName_(name){const s=String(name||'').trim();if(!s)return '';if(s.indexOf('Room ')===0){const rest=s.slice(5).trim();if(/^\d+$/.test(rest))return rest;if(rest)return '~'+rest;}return '~'+s;}
 function roomsSheet_(){const ss=SpreadsheetApp.getActive();let s=ss.getSheetByName('Rooms');if(!s){s=ss.insertSheet('Rooms');s.appendRow(['job','room_key','folder_name','created_by','created_et','removed']);s.setFrozenRows(1);}return s;}
 function roomRows_(){const s=roomsSheet_(),last=s.getLastRow();if(last<2)return [];return s.getRange(2,1,last-1,6).getValues().map(function(r,i){return {row:i+2,job:String(r[0]||'').trim(),key:String(r[1]||'').trim(),folder:String(r[2]||'').trim(),by:String(r[3]||''),at:r[4],removed:String(r[5]||'').trim()};});}
 function roomRemoved_(job,key,folder){return roomRows_().some(function(r){return r.job===job&&r.removed&&(r.key===key||(folder&&r.folder===folder));});}
@@ -272,7 +274,11 @@ function ensureLegacyRooms_(){const pr=PropertiesService.getScriptProperties();i
 function syncRoomIndex_(job,nameByKey){const rows=roomRows_(),have={},removed={};rows.forEach(function(r){if(r.job!==job)return;if(r.removed)removed[r.key]=1;else if(r.key)have[r.key]=1;});
  const add=[];Object.keys(nameByKey).forEach(function(k){if(have[k]||removed[k])return;add.push([job,k,nameByKey[k],'',Utilities.formatDate(new Date(),TZ,'yyyy-MM-dd HH:mm:ss'),'']);});
  if(add.length){const s=roomsSheet_(),start=Math.max(s.getLastRow()+1,2);s.getRange(start,1,add.length,6).setValues(add);}return removed;}
-function sortRoomKeys_(keys){keys.sort(function(a,b){const as=a.charAt(0)==='~'?a.slice(1):a,bs=b.charAt(0)==='~'?b.slice(1):b,an=/^\d+$/.test(as),bn=/^\d+$/.test(bs);if(an&&bn)return +as-+bs;if(an)return -1;if(bn)return 1;return as<bs?-1:as>bs?1:0;});return keys;}
+function roomSortLabel_(k){return k.charAt(0)==='~'?k.slice(1):'Room '+k;}
+function sortRoomKeys_(keys){keys.sort(function(a,b){const ac=(roomSortLabel_(a).toLowerCase().match(/\d+|\D+/g)||[]),bc=(roomSortLabel_(b).toLowerCase().match(/\d+|\D+/g)||[]),n=Math.max(ac.length,bc.length);
+ for(let i=0;i<n;i++){const x=ac[i]||'',y=bc[i]||'';if(x===y)continue;const xn=/^\d+$/.test(x),yn=/^\d+$/.test(y);
+  if(xn&&yn){if(x.length>15||y.length>15)return x<y?-1:1;const d=(+x)-(+y);if(d)return d;if(x.length!==y.length)return x.length-y.length;continue;}
+  return x<y?-1:1;}return 0;});return keys;}
 function listRooms_(job){try{job=String(job||'').trim();if(!isJob(job))return {error:'School not found'};
  let parent;try{parent=masterFolder(job);}catch(err){return {error:'Could not open the school Drive folder for '+job+'.'};}
  const nameByKey={},keys=[];
@@ -282,7 +288,9 @@ function listRooms_(job){try{job=String(job||'').trim();if(!isJob(job))return {e
  return {ok:true,job:job,rooms:sortRoomKeys_(keys.filter(function(k){return !removed[k];})),source:'drive'};
 }catch(e){return {error:'Could not load rooms. '+(e&&e.message?e.message:e)};}}
 function parseRoomTokens_(raw){const parts=String(raw||'').split(/[,;\n]+/),out=[],seen={};
- function push(token){let key;if(/^\d+$/.test(token))key=String(+token);else{const n=String(token).replace(/^~/,'').replace(/[\u0000-\u001f\u007f\/\\]/g,'').replace(/[:*?"<>|`']/g,'').replace(/\s+/g,' ').trim().slice(0,40);if(!n)return;key='~'+n;}if(!key||seen[key])return;seen[key]=1;out.push(key);}
+ function push(token){let t=String(token||'').trim();if(!t)return;const custom=t.charAt(0)==='~';if(custom)t=t.slice(1);t=sanitizeRoom_(t);if(!t)return;let key='';
+  if(!custom){const bare=t.replace(/^(room|rm)\.?\s+/i,'');if(bare!==t&&/^\d+$/.test(bare))key=bare;else if(/^\d+$/.test(t))key=t;}
+  if(!key)key='~'+t.replace(/^~+/,'');if(seen[key])return;seen[key]=1;out.push(key);}
  for(let i=0;i<parts.length;i++){const t=parts[i].trim();if(!t)continue;const range=t.match(/^(\d+)\s*[-–—]\s*(\d+)$/);
   if(range){let a=+range[1],b=+range[2];if(a>b){const x=a;a=b;b=x;}if(b-a>100)return {error:'A range can cover at most 100 rooms.'};for(let n=a;n<=b;n++){push(String(n));if(out.length>200)return {error:'Add at most 200 rooms at a time.'};}}
   else{push(t);if(out.length>200)return {error:'Add at most 200 rooms at a time.'};}}
