@@ -1,4 +1,4 @@
-// TSShourtracker backend: Google Apps Script bound to a Google Sheet. Code.gs v49.
+// TSShourtracker backend: Google Apps Script bound to a Google Sheet. Code.gs v50.
 // Deploy > New deployment > Web app, Execute as: Me, Access: Anyone. Paste the /exec URL into index.html (API const).
 const TZ='America/New_York';
 // Clock in/out mail always goes here. EMP to/cc must not send anywhere else.
@@ -68,12 +68,12 @@ function sh(){const ss=SpreadsheetApp.getActive();let s=ss.getSheetByName('Punch
 // one-time heal: format the PIN column as text and pad numbers like 123 -> '0123'
 function fixPinCol_(s,col){const n=s.getMaxRows();s.getRange(2,col,Math.max(1,n-1),1).setNumberFormat('@');const last=s.getLastRow();if(last<2)return;const r=s.getRange(2,col,last-1,1),v=r.getValues();let ch=false;
  const o=v.map(x=>{const p=pin_(x[0]);if(String(x[0])!==p){ch=true;}return [p];});if(ch)r.setValues(o);}
-function rows(code){return sh().getDataRange().getValues().slice(1).map((r,i)=>({row:i+2,code:pin_(r[0]),name:r[1],job:r[2],inT:r[3],outT:r[4],hours:r[5],note:String(r[8]||''),origIn:r[13]||''})).filter(r=>r.code===code);}
+function rows(code){return sh().getDataRange().getValues().slice(1).map((r,i)=>({row:i+2,code:pin_(r[0]),name:r[1],job:r[2],inT:r[3],outT:r[4],hours:r[5],note:String(r[8]||''),manualReason:String(r[10]||''),origIn:r[13]||'',origOut:r[14]||''})).filter(r=>r.code===code);}
 function fmt(d){return Utilities.formatDate(new Date(d),TZ,'EEE MMM d, h:mm a')+' ET';}
 function origInLabel_(v){if(v==null||v==='')return '';try{const d=new Date(v);if(isNaN(d.getTime()))return '';return fmt(d);}catch(e){return '';}}
 function weekKey(d){const p=Utilities.formatDate(new Date(d),TZ,'yyyy-MM-dd-u').split('-').map(Number);const t=new Date(Date.UTC(p[0],p[1]-1,p[2]-(p[3]%7)));return Utilities.formatDate(t,'UTC','yyyy-MM-dd');}// week = Sunday 00:00 to Saturday 23:59:59 ET; key = Sunday date
 function summary(code){const e=EMP[code],rs=rows(code),weeks={},admin=e.admin===true;
- rs.filter(r=>r.outT).forEach(r=>{const k=weekKey(r.inT);(weeks[k]=weeks[k]||{week:k,hours:0,shifts:[]});weeks[k].hours+=Number(r.hours);weeks[k].shifts.push({job:r.job,in:fmt(r.inT),out:fmt(r.outT),hours:+Number(r.hours).toFixed(2),manual:!!r.note});});
+ rs.filter(r=>r.outT).forEach(r=>{const k=weekKey(r.inT);(weeks[k]=weeks[k]||{week:k,hours:0,shifts:[]});weeks[k].hours+=Number(r.hours);weeks[k].shifts.push({row:r.row,job:r.job,in:fmt(r.inT),out:fmt(r.outT),inIso:String(r.inT),outIso:String(r.outT),hours:+Number(r.hours).toFixed(2),manual:!!r.note,manualReason:r.manualReason,note:r.note,originalIn:origInLabel_(r.origIn),originalOut:origInLabel_(r.origOut)});});
  const list=Object.values(weeks).sort((a,b)=>a.week<b.week?1:-1).map(w=>{if(admin){const h=+Number(w.hours).toFixed(2);return {...w,hours:h,regular:h,overtime:0,pay:0};}const p=weekPay_(w.hours,e.rate,otEligible_(e));
   return {...w,hours:+w.hours.toFixed(2),regular:p.regular,overtime:p.overtime,pay:p.pay};});
  const open=rs.find(r=>!r.outT);const o={name:e.name,rate:admin?null:e.rate,admin:admin,otEligible:admin?false:otEligible_(e),jobs:jobsList(),addrs:addrMap(),folders:folderMap(),open:open?{job:open.job,in:fmt(open.inT),inIso:String(open.inT)}:null,weeks:list,manager:!!e.manager,plan:PLAN};
@@ -224,11 +224,11 @@ function managerData(e,p){if(!e||e.manager!==true)return {error:'Not authorized'
 function managerData_(q){
  const ss=SpreadsheetApp.getActive(),now=new Date(),cut=new Date(now.getTime()-14*864e5),thisW=weekKey(now),prevW=weekKey(new Date(now.getTime()-7*864e5));
  const tab=n=>{const t=ss.getSheetByName(n);return t?t.getDataRange().getValues().slice(1):[];},ts=v=>v instanceof Date?Utilities.formatDate(v,TZ,'yyyy-MM-dd HH:mm:ss'):String(v);
- const P=tab('Punches').map((r,i)=>{const flag=String(r[9]||'').trim().toLowerCase(),why=String(r[10]||'').trim(),outFlag=String(r[12]||'').trim().toLowerCase();return {row:i+2,note:String(r[8]||''),manualFlag:flag==='yes'||flag==='y'||flag==='1'||flag==='true',manualReason:why,submitted:r[11]||'',manualOut:outFlag==='yes'||outFlag==='y'||outFlag==='1'||outFlag==='true',originalIn:origInLabel_(r[13]),code:pin_(r[0]),name:r[1],job:r[2],inT:r[3],outT:r[4],hours:Number(r[5]||0),photos:Number(r[6]||0),folder:r[7]||''};}).filter(r=>r.inT);
- const onNow=P.filter(r=>!r.outT).map(r=>({row:r.row,name:r.name,code:r.code,job:r.job,since:fmt(r.inT),inIso:String(r.inT),hours:+((now-new Date(r.inT))/36e5).toFixed(2),manual:r.manualFlag||!!r.note,manualReason:r.manualReason,note:r.note,originalIn:r.originalIn}));
+ const P=tab('Punches').map((r,i)=>{const flag=String(r[9]||'').trim().toLowerCase(),why=String(r[10]||'').trim(),outFlag=String(r[12]||'').trim().toLowerCase();return {row:i+2,note:String(r[8]||''),manualFlag:flag==='yes'||flag==='y'||flag==='1'||flag==='true',manualReason:why,submitted:r[11]||'',manualOut:outFlag==='yes'||outFlag==='y'||outFlag==='1'||outFlag==='true',originalIn:origInLabel_(r[13]),originalOut:origInLabel_(r[14]),code:pin_(r[0]),name:r[1],job:r[2],inT:r[3],outT:r[4],hours:Number(r[5]||0),photos:Number(r[6]||0),folder:r[7]||''};}).filter(r=>r.inT);
+ const onNow=P.filter(r=>!r.outT).map(r=>({row:r.row,name:r.name,code:r.code,job:r.job,since:fmt(r.inT),inIso:String(r.inT),hours:+((now-new Date(r.inT))/36e5).toFixed(2),manual:r.manualFlag||!!r.note,manualReason:r.manualReason,note:r.note,originalIn:r.originalIn,originalOut:r.originalOut}));
  const weeks={};P.filter(r=>r.outT).forEach(r=>{const k=weekKey(r.inT);if(k!==thisW&&k!==prevW)return;const id=r.code+'|'+k;(weeks[id]=weeks[id]||{code:r.code,week:k,hours:0}).hours+=r.hours;});
  const totals=payCodes_().map(c=>{const x=EMP[c],elig=otEligible_(x),f=k=>{const h=(weeks[c+'|'+k]||{hours:0}).hours,p=weekPay_(h,x.rate,elig);return {hours:+h.toFixed(2),overtime:p.overtime,pay:p.pay};};return {code:c,name:x.name,rate:x.rate,otEligible:elig,thisWeek:f(thisW),lastWeek:f(prevW)};});
- const shifts=P.filter(r=>new Date(r.inT)>=cut).map(r=>{const emp=EMP[r.code]||{},paid=paid_(emp);return {row:r.row,note:r.note,manual:r.manualFlag||!!r.note,manualReason:r.manualReason,manualOut:!!r.manualOut,originalIn:r.originalIn,outIso:String(r.outT||''),name:r.name,code:r.code,job:r.job,in:fmt(r.inT),inIso:String(r.inT),out:r.outT?fmt(r.outT):'',hours:+r.hours.toFixed(2),pay:paid?+(r.hours*(emp.rate||0)).toFixed(2):null,photos:r.photos,folder:r.folder};}).reverse();
+ const shifts=P.filter(r=>new Date(r.inT)>=cut).map(r=>{const emp=EMP[r.code]||{},paid=paid_(emp);return {row:r.row,note:r.note,manual:r.manualFlag||!!r.note,manualReason:r.manualReason,manualOut:!!r.manualOut,originalIn:r.originalIn,originalOut:r.originalOut,outIso:String(r.outT||''),name:r.name,code:r.code,job:r.job,in:fmt(r.inT),inIso:String(r.inT),out:r.outT?fmt(r.outT):'',hours:+r.hours.toFixed(2),pay:paid?+(r.hours*(emp.rate||0)).toFixed(2):null,photos:r.photos,folder:r.folder};}).reverse();
  const photos=[],ckMap={},t0=Date.now(),cap=()=>photos.length<200&&Date.now()-t0<8000;try{jobsList().forEach(j=>{const mf=masterFolder(j),fs=mf.getFolders();while(fs.hasNext()&&cap()){const rf=fs.next(),it=rf.getFiles();while(it.hasNext()&&Date.now()-t0<8000){const f=it.next(),d=f.getDateCreated(),nm=f.getName(),hit=ckMatchItem_(rf.getName(),nm);
   if(hit){const k=j+'|'+rf.getName();(ckMap[k]=ckMap[k]||{job:j,room:rf.getName(),got:{}}).got[hit]=1;}
   if(d>=cut&&cap())photos.push({job:j,room:rf.getName(),name:nm,url:f.getUrl(),time:Utilities.formatDate(d,TZ,'yyyy-MM-dd HH:mm'),checklist:!!hit||nm.indexOf(rf.getName()+' ')!==0});}}});}catch(x){}
@@ -238,7 +238,7 @@ function managerData_(q){
  const support=tab('Support').map(r=>({time:ts(r[0]),code:pin_(r[1]),name:r[2],question:r[3],photos:r[4],answer:r[5],offTopic:!!r[6]})).reverse().slice(0,200);
  const weeksAvail=[...new Set(P.map(r=>weekKey(r.inT)).concat([thisW]))].sort().reverse(),selW=weeksAvail.indexOf(String(q.week||''))>=0?String(q.week):thisW;
  const week={week:selW,list:payCodes_().map(c=>{const x=EMP[c],elig=otEligible_(x),ss=P.filter(r=>r.code===c&&weekKey(r.inT)===selW),h=ss.filter(r=>r.outT).reduce((a,r)=>a+r.hours,0),p=weekPay_(h,x.rate,elig);
-  return {code:c,name:x.name,rate:x.rate,otEligible:elig,hours:+h.toFixed(2),overtime:p.overtime,pay:p.pay,shifts:ss.map(r=>({row:r.row,job:r.job,in:fmt(r.inT),out:r.outT?fmt(r.outT):'',open:!r.outT,hours:+r.hours.toFixed(2),manual:r.manualFlag||!!r.note,manualReason:r.manualReason,manualOut:!!r.manualOut,originalIn:r.originalIn,note:r.note}))};})};
+  return {code:c,name:x.name,rate:x.rate,otEligible:elig,hours:+h.toFixed(2),overtime:p.overtime,pay:p.pay,shifts:ss.map(r=>({row:r.row,job:r.job,in:fmt(r.inT),out:r.outT?fmt(r.outT):'',open:!r.outT,hours:+r.hours.toFixed(2),manual:r.manualFlag||!!r.note,manualReason:r.manualReason,manualOut:!!r.manualOut,originalIn:r.originalIn,originalOut:r.originalOut,note:r.note}))};})};
  return {ok:true,week:week,weeks:weeksAvail,jobs:jobsList(),addrs:addrMap(),folders:folderMap(),generated:fmt(now),thisWeek:thisW,lastWeek:prevW,onNow,totals,shifts,photos,checklistRooms:checklistRooms,roomDeletions:roomDelRows_(),receipts,support};}
 // Room delete: trash the room Drive folder (recoverable 30 days) and log who did it. Any logged-in employee.
 function roomDelSheet_(){const ss=SpreadsheetApp.getActive();let s=ss.getSheetByName('Room deletions');if(!s){s=ss.insertSheet('Room deletions');s.appendRow(['time_et','code','name','job','folder','photos']);s.setFrozenRows(1);}return s;}
@@ -342,6 +342,7 @@ function punchExtraCols_(){const s=sh();
  if(String(s.getRange(1,12).getValue())!=='submitted_at')s.getRange(1,12).setValue('submitted_at');
  if(String(s.getRange(1,13).getValue())!=='manual_out')s.getRange(1,13).setValue('manual_out');
  if(String(s.getRange(1,14).getValue())!=='original_in')s.getRange(1,14).setValue('original_in');
+ if(String(s.getRange(1,15).getValue())!=='original_out')s.getRange(1,15).setValue('original_out');
  return s;}
 function hmKey_(t){const m=String(t||'').trim().match(/^(\d{1,2}):(\d{2})$/);if(!m)return '';const h=+m[1],mm=+m[2];if(h>23||mm>59)return '';return ('0'+h).slice(-2)+':'+m[2];}
 function manualWhen_(date,hm){const d=mgrTime_(date,hm);if(!d||Utilities.formatDate(d,TZ,'yyyy-MM-dd HH:mm')!==date+' '+hm)return null;return d;}
@@ -351,14 +352,11 @@ function manualIn(p,e){
  if(!why)return {error:'Enter a short reason (for example, forgot to clock in).'};
  const date=String(p.date||'').trim(),hm=hmKey_(p.time),entered=hm?manualWhen_(date,hm):null;
  if(!entered)return {error:'Enter a valid time in.'};
- const now=new Date(),entKey=Utilities.formatDate(entered,TZ,'yyyy-MM-dd HH:mm'),nowKey=Utilities.formatDate(now,TZ,'yyyy-MM-dd HH:mm');
- if(entKey>nowKey)return {error:'Time in can’t be in the future.'};
+ const now=new Date();
  const hasOut=!!String(p.outTime||'').trim();let out=null;
  if(hasOut){const outHm=hmKey_(p.outTime);if(!outHm)return {error:'Enter a valid time out.'};
   const outDate=String(p.outDate||'').trim()||date;out=manualWhen_(outDate,outHm);if(!out)return {error:'Enter a valid time out.'};
-  if(out.getTime()<=entered.getTime())return {error:'Time out must be after time in.'};
-  if(Utilities.formatDate(out,TZ,'yyyy-MM-dd HH:mm')>nowKey)return {error:'Time out can’t be in the future.'};
-  if(out.getTime()-entered.getTime()>16*60*60*1000)return {error:'Shift can’t be longer than 16 hours.'};}
+  if(out.getTime()<=entered.getTime())return {error:'Time out must be after time in.'};}
  const all=rows(p.code),openRow=all.find(r=>!r.outT);
  if(openRow)return {error:'You’re already clocked in at '+openRow.job+' since '+fmt(openRow.inT)+'. Clock out before a manual clock in.'};
  const end=out||now,hit=all.find(r=>{if(!r.outT)return false;const a=new Date(r.inT),b=new Date(r.outT);return !isNaN(a)&&!isNaN(b)&&a<end&&b>entered;});
@@ -377,21 +375,40 @@ function adjustStart(p,e){
  if(!why)return {error:'Enter a short reason (for example, forgot to clock in).'};
  const date=String(p.date||'').trim(),hm=hmKey_(p.time),entered=hm?manualWhen_(date,hm):null;
  if(!entered)return {error:'Enter a valid time in.'};
- const now=new Date(),entKey=Utilities.formatDate(entered,TZ,'yyyy-MM-dd HH:mm'),nowKey=Utilities.formatDate(now,TZ,'yyyy-MM-dd HH:mm');
- if(entKey>nowKey)return {error:'Time in can’t be in the future.'};
+ const now=new Date();
  const all=rows(p.code),open=all.find(function(r){return !r.outT;});
  if(!open)return {error:'You are not clocked in.'};
  const cur=new Date(open.inT);if(isNaN(cur.getTime()))return {error:'That shift could not be read. Tell Austin.'};
  if(entered.getTime()>=cur.getTime())return {error:'The new start has to be earlier than '+fmt(cur)+'.'};
- if(now.getTime()-entered.getTime()>16*60*60*1000)return {error:'Shift can’t be longer than 16 hours.'};
  const hit=all.find(function(r){if(r.row===open.row||!r.outT)return false;const a=new Date(r.inT),b=new Date(r.outT);return !isNaN(a.getTime())&&!isNaN(b.getTime())&&a<now&&b>entered;});
  if(hit)return {error:'That time overlaps your shift at '+hit.job+' ('+fmt(hit.inT)+' – '+fmt(hit.outT)+').'};
- const s=punchExtraCols_(),was=fmt(cur),note=(open.note?open.note+' | ':'')+'Start adjusted from '+was;
+ const s=punchExtraCols_(),was=fmt(cur),note=(open.note?open.note+' | ':'')+'Adjusted from '+was;
  s.getRange(open.row,4).setValue(entered.toISOString());
  s.getRange(open.row,9,1,4).setValues([[note,'yes',why,now.toISOString()]]);
  if(!open.origIn)s.getRange(open.row,14).setValue(cur.toISOString());
  MailApp.sendEmail(CLOCK_TO,'TSShourtracker: START ADJUSTED - '+open.job,e.name+' adjusted the start time\nJob: '+open.job+'\nWas: '+was+'\nNow: '+fmt(entered)+'\nReason: '+why+'\nSubmitted: '+fmt(now));
  const o=summary(p.code);o.startAdjusted=true;o.was=was;o.nowIn=fmt(entered);return o;}
+// Employee edits one of their own finished punches. No age limit, no shift-length cap, no future-time block. Out must be after in. Column N/O keep the first original times.
+function adjustPunch(p,e){
+ const why=String(p.reason||'').replace(/[\u0000-\u001f]/g,' ').replace(/\s+/g,' ').trim().slice(0,120);
+ if(!why)return {error:'Enter a short reason (for example, forgot to clock in).'};
+ const date=String(p.date||'').trim(),hm=hmKey_(p.time),entered=hm?manualWhen_(date,hm):null;
+ if(!entered)return {error:'Enter a valid time in.'};
+ const outHm=hmKey_(p.outTime),outDate=String(p.outDate||'').trim()||date,out=outHm?manualWhen_(outDate,outHm):null;
+ if(!out)return {error:'Enter a valid time out.'};
+ if(out.getTime()<=entered.getTime())return {error:'Time out must be after time in.'};
+ const all=rows(p.code),r=all.find(function(x){return x.row===Number(p.row)&&String(x.inT)===String(p.inIso);});
+ if(!r||!r.outT)return {error:'That shift changed. Refresh and try again.'};
+ const hit=all.find(function(x){if(x.row===r.row||!x.outT)return false;const a=new Date(x.inT),b=new Date(x.outT);return !isNaN(a.getTime())&&!isNaN(b.getTime())&&a<out&&b>entered;});
+ if(hit)return {error:'That time overlaps your shift at '+hit.job+' ('+fmt(hit.inT)+' – '+fmt(hit.outT)+').'};
+ const s=punchExtraCols_(),now=new Date(),wasIn=fmt(r.inT),wasOut=fmt(r.outT),hrs=(out.getTime()-entered.getTime())/36e5;
+ const note=(r.note?r.note+' | ':'')+'Adjusted from '+wasIn+' to '+wasOut;
+ s.getRange(r.row,4,1,3).setValues([[entered.toISOString(),out.toISOString(),hrs.toFixed(4)]]);
+ s.getRange(r.row,9,1,4).setValues([[note,'yes',why,now.toISOString()]]);
+ if(!r.origIn)s.getRange(r.row,14).setValue(new Date(r.inT).toISOString());
+ if(!r.origOut)s.getRange(r.row,15).setValue(new Date(r.outT).toISOString());
+ MailApp.sendEmail(CLOCK_TO,'TSShourtracker: TIME ADJUSTED - '+r.job,e.name+' adjusted a punch\nJob: '+r.job+'\nWas in: '+wasIn+'\nWas out: '+wasOut+'\nNow in: '+fmt(entered)+'\nNow out: '+fmt(out)+'\nShift hours: '+hrs.toFixed(2)+'\nReason: '+why+'\nSubmitted: '+fmt(now));
+ const o=summary(p.code);o.timeAdjusted=true;return o;}
 // ===== QuickBooks Online (manager only). Script Properties: QBO_CLIENT_ID, QBO_CLIENT_SECRET (Intuit developer app), optional QBO_ENV=sandbox.
 // Tokens/realm live in Script Properties (QBO_TOKENS, QBO_REALM). Redirect URI = this web app's /exec URL (handled by doGet).
 const QBO_SCOPE='com.intuit.quickbooks.accounting',QBO_MINOR='75';
@@ -478,6 +495,7 @@ function doPost(ev){let lock=null;try{
   try{if(p.save){lock=LockService.getScriptLock();lock.waitLock(20000);return out(mileageSave(p,e));}return out(mileageGet(p.code));}catch(x){return out({error:p.save?'Could not save mileage. Try again.':'Could not load mileage. Try again.'});}}
  if(p.action==='manualIn'){lock=LockService.getScriptLock();lock.waitLock(20000);return out(manualIn(p,e));}
  if(p.action==='adjustStart'){lock=LockService.getScriptLock();lock.waitLock(20000);return out(adjustStart(p,e));}
+ if(p.action==='adjustPunch'){lock=LockService.getScriptLock();lock.waitLock(20000);return out(adjustPunch(p,e));}
  if(p.action==='punch'){lock=LockService.getScriptLock();lock.waitLock(20000);const open=rows(p.code).find(r=>!r.outT),now=new Date();
   if(!open){if(!isJob(p.job))return out({error:'Pick a school'});
    sh().appendRow([pinW_(p.code),e.name,p.job,now.toISOString(),'','']);

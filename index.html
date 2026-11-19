@@ -70,8 +70,8 @@ textarea{width:100%;min-height:96px;border:2px solid var(--line);border-radius:1
 <main id="m"></main><div id="ldov" role="status" aria-live="polite" style="display:none;position:fixed;inset:0;z-index:999;background:rgba(8,12,22,.94);backdrop-filter:blur(3px);flex-direction:column;align-items:center;justify-content:center;gap:16px;color:var(--ink);font:700 20px var(--f)"><span class="spin dk" style="width:46px;height:46px;border-width:4px"></span><span>Loading…</span></div><div id="toast"></div>
 <script>
 // ===== App version: bump on every release; open pages auto-reload when a newer one is live =====
-const APP_V='65';
-async function vCheck(){try{if(uploading||man||(typeof adj!=='undefined'&&adj)||(typeof ck!=='undefined'&&ck.busy)||(typeof rcBusy!=='undefined'&&rcBusy)||(typeof rcPend!=='undefined'&&rcPend)||(typeof mi!=='undefined'&&mi&&(mi.busy||mi.dirty)))return;const t=await (await fetch(location.pathname+'?cb='+Date.now(),{cache:'no-store'})).text(),v=(t.match(/APP_V='(\d+)'/)||[])[1];
+const APP_V='66';
+async function vCheck(){try{if(uploading||man||(typeof adj!=='undefined'&&adj)||(typeof ed!=='undefined'&&ed)||(typeof ck!=='undefined'&&ck.busy)||(typeof rcBusy!=='undefined'&&rcBusy)||(typeof rcPend!=='undefined'&&rcPend)||(typeof mi!=='undefined'&&mi&&(mi.busy||mi.dirty)))return;const t=await (await fetch(location.pathname+'?cb='+Date.now(),{cache:'no-store'})).text(),v=(t.match(/APP_V='(\d+)'/)||[])[1];
  if(v&&v!==APP_V)location.replace(location.pathname+'?v='+v);}catch(e){}}
 addEventListener('load',vCheck);document.addEventListener('visibilitychange',()=>{if(!document.hidden)vCheck()});addEventListener('pageshow',e=>{if(e.persisted)vCheck()});
 
@@ -114,7 +114,7 @@ async function call(body,ms){if(MOCK){const j=mock(body);if(j&&j.error)throw Err
  try{r=await fetch(API,{method:'POST',body:JSON.stringify(body),signal:ac.signal});}catch(e){throw Error(e.name==='AbortError'?'Timed out — weak signal or server busy. Try again.':'No connection. Check signal and try again.');}finally{clearTimeout(t);}
  let j;try{j=await r.json();}catch(e){throw Error('Server error ('+r.status+'). Try again.');}if(j.error)throw Error(j.error);return j;}
 const MOCK_EMP={'2647':{name:'William Griffin',mileage:true},'2525':{name:'Taylor',mileage:true,manager:true},'4821':{name:'Austin Stinson',manager:true,admin:true},'9914':{name:'Paul Sorenson'},'1853':{name:'Tyler Jordan',rate:27.5,otEligible:true,hours:46},'4099':{name:'Kyle McAllister',rate:28,otEligible:true,hours:42},'2565':{name:'Joe Miller',rate:27.5,otEligible:true,hours:50},'6154':{name:'Lee Ellis',rate:35,otEligible:false,hours:46},'5710':{name:'Stratton Ponder',rate:22,otEligible:false,hours:46},'0231':{name:'Austyn Roach',rate:25,otEligible:false,hours:46},'0027':{name:'Trent Phillips',rate:30,otEligible:true,hours:46},'6213':{name:'Blake Noblin',rate:20,otEligible:false,hours:46}};
-let mockJobs=['WT Moore','Ruediger'],mockMiles={},mockOpen=null,mockShifts=[],mockCk={},mockDels=[],mockRooms={'WT Moore':['101','102','204','~MDF Closet']},mockRemoved={},mockDriveFail='',mockAdjusted=null;try{mockMiles=JSON.parse(sessionStorage.tssMockMiles||'{}');}catch(e){}
+let mockJobs=['WT Moore','Ruediger'],mockMiles={},mockOpen=null,mockShifts=[],mockCk={},mockDels=[],mockRooms={'WT Moore':['101','102','204','~MDF Closet']},mockRemoved={},mockDriveFail='',mockAdjusted=null,mockHist={row:9,job:'WT Moore',in:'Fri Oct 23, 7:00 AM ET',out:'Fri Oct 23, 3:30 PM ET',hours:8.5,inIso:'2026-10-23T11:00:00.000Z',outIso:'2026-10-23T19:30:00.000Z',inMs:Date.parse('2026-10-23T11:00:00.000Z'),outMs:Date.parse('2026-10-23T19:30:00.000Z')};try{mockMiles=JSON.parse(sessionStorage.tssMockMiles||'{}');}catch(e){}
 const LEGACY_SEED=['102','103','104','105','106','107','108','109','110','116'];
 function mockLegacyJob(){return mockJobs.find(j=>String(j).toLowerCase()==='legacy echs (tx)')||mockJobs.find(j=>/legacy/i.test(j)&&/echs/i.test(j))||'';}
 function mockSeedLegacy(){const job=mockLegacyJob();if(!job)return;const cur=mockRooms[job]||(mockRooms[job]=[]),gone=mockRemoved[job]||{};LEGACY_SEED.forEach(k=>{if(cur.indexOf(k)<0&&!gone[k])cur.push(k);});}
@@ -171,9 +171,23 @@ function mock(b){const t=new Date(Date.now()-(2*3600+17*60)*1000).toISOString(),
  let open=new URLSearchParams(location.search).has('out')?null:{job:'WT Moore',in:fmtEt(new Date(t).getTime()),inIso:t};
  if(b.action==='punch'&&mockOpen){mockShifts.push({job:mockOpen.job,inMs:mockOpen.ms,outMs:Date.now(),inLabel:mockOpen.in,outLabel:fmtEt(Date.now())});mockOpen=null;open=null;}
  else if(mockOpen)open={job:mockOpen.job,in:mockOpen.in,inIso:mockOpen.inIso};
- const ret={plan:new URLSearchParams(location.search).get('plan')||'paid',name:who.name,rate:rate,admin:!!who.admin,otEligible:otOn,manager:!!who.manager,mileage:!!who.mileage,weekMileage:who.mileage?(mockMiles[code+'|'+week]||{ok:true,week:week,start:null,end:null,total:null}):undefined,jobs:mockJobs.slice(),folders:mockFolderMap(),open:open,weeks:[{week:week,hours:hours,regular:+reg.toFixed(2),overtime:+otHrs.toFixed(2),pay:pay,shifts:who.admin?[]:[{job:'WT Moore',in:'Fri Oct 23, 7:00 AM ET',out:'Fri Oct 23, 3:30 PM ET',hours:8.5}]}]};
+ let timeAdj=false;
+ if(b.action==='adjustPunch'){
+  const err=editErr(b.date,b.time,b.outDate,b.outTime,b.reason);if(err)return {error:err};
+  if(Number(b.row)!==mockHist.row||String(b.inIso)!==String(mockHist.inIso))return {error:'That shift changed. Refresh and try again.'};
+  const inMs=wallEtMs(b.date,b.time),outMs=wallEtMs(b.outDate||b.date,b.outTime);
+  const hit=mockShifts.find(r=>r.inMs<outMs&&r.outMs>inMs);
+  if(hit)return {error:'That time overlaps your shift at '+hit.job+' ('+hit.inLabel+' – '+hit.outLabel+').'};
+  const wasIn=mockHist.originalIn||mockHist.in,wasOut=mockHist.originalOut||mockHist.out;
+  mockHist.in=fmtEt(inMs);mockHist.out=fmtEt(outMs);mockHist.inIso=new Date(inMs).toISOString();mockHist.outIso=new Date(outMs).toISOString();mockHist.inMs=inMs;mockHist.outMs=outMs;mockHist.hours=+((outMs-inMs)/36e5).toFixed(2);
+  if(!mockHist.originalIn)mockHist.originalIn=wasIn;if(!mockHist.originalOut)mockHist.originalOut=wasOut;
+  mockHist.manual=true;mockHist.manualReason=String(b.reason||'').replace(/\s+/g,' ').trim();mockHist.note='Adjusted from '+wasIn+' to '+wasOut;timeAdj=true;
+ }
+ const hist=Object.assign({},mockHist);
+ const ret={plan:new URLSearchParams(location.search).get('plan')||'paid',name:who.name,rate:rate,admin:!!who.admin,otEligible:otOn,manager:!!who.manager,mileage:!!who.mileage,weekMileage:who.mileage?(mockMiles[code+'|'+week]||{ok:true,week:week,start:null,end:null,total:null}):undefined,jobs:mockJobs.slice(),folders:mockFolderMap(),open:open,weeks:[{week:week,hours:hours,regular:+reg.toFixed(2),overtime:+otHrs.toFixed(2),pay:pay,shifts:who.admin?[]:[hist]}]};
  if(b.action==='manualIn'){ret.manualIn=true;if(manualFull){ret.manualShift=true;ret.open=null;}}
- if(adjusted){ret.startAdjusted=true;ret.was=mockOpen&&mockOpen.originalIn;ret.nowIn=mockOpen&&mockOpen.in;}return ret;}
+ if(adjusted){ret.startAdjusted=true;ret.was=mockOpen&&mockOpen.originalIn;ret.nowIn=mockOpen&&mockOpen.in;}
+ if(timeAdj)ret.timeAdjusted=true;return ret;}
 function weekNow(){const p=Object.fromEntries(new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit',weekday:'short'}).formatToParts(new Date()).map(x=>[x.type,x.value]));
  const d=new Date(Date.UTC(+p.year,p.month-1,+p.day));const back=(['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].indexOf(p.weekday));d.setUTCDate(d.getUTCDate()-back);return d.toISOString().slice(0,10);}
 // ---------- Login keypad ----------
@@ -187,7 +201,7 @@ document.addEventListener('keydown',e=>{if(S||!$('dots')||$('ldov').style.displa
  let k=e.key;if(/^Numpad\d$/.test(e.code))k=e.code.slice(6);if(/^[0-9]$/.test(k)){e.preventDefault();key(k);}else if(k==='Backspace'||k==='Delete'){e.preventDefault();key('b');}else if(k==='Enter'){e.preventDefault();if(code.length===4)key('');}});
 // ---------- Main ----------
 function fmtT(ms){const s=Math.max(0,Math.floor(ms/1000));return[Math.floor(s/3600),Math.floor(s/60)%60,s%60].map(n=>String(n).padStart(2,'0')).join(':');}
-function render(){readManual();readAdjust();clearInterval(tick);const first=S.name.split(' ')[0];const w=S.weeks.find(x=>x.week===weekNow());
+function render(){readManual();readAdjust();readEdit();clearInterval(tick);const first=S.name.split(' ')[0];const w=S.weeks.find(x=>x.week===weekNow());
  if(tab==='support')return supportView();
  if(tab==='receipts')return receiptView();
  if(tab==='links')return linksView();
@@ -203,7 +217,7 @@ function render(){readManual();readAdjust();clearInterval(tick);const first=S.na
  const hrs=w?w.hours:0,pct=Math.min(100,hrs/40*100),otOn=S.otEligible!==false;
  h+=S.admin?`<div class="card"><div class="row"><h2 style="font-size:17px">This week</h2><span class="mute">Sun–Sat</span></div><div class="stats"><div class="stat"><b>${hrs.toFixed(1)}</b><small>hours</small></div></div><div class="mute" style="margin-top:6px;font-size:13px">Test punches are not included in payroll.</div></div>`:`<div class="card"><div class="row"><h2 style="font-size:17px">This week</h2><span class="mute">Sun–Sat</span></div><div class="stats"><div class="stat"><b>${hrs.toFixed(1)}</b><small>hours</small></div><div class="stat"><b>${(w?w.overtime:0).toFixed(1)}</b><small>overtime</small></div><div class="stat"><b>$${(w?w.pay:0).toFixed(0)}</b><small>gross pay</small></div></div>
  <div class="bar ${otOn&&hrs>40?'ot':''}"><i style="width:0" data-w="${pct}"></i></div><div class="row mute" style="margin-top:6px;font-size:13px"><span>${otOn?(hrs>=40?'Overtime pays 1.5× now':(40-hrs).toFixed(1)+' h to overtime'):'Straight time (no OT premium)'}</span><span>40 h</span></div></div>`;
- if(S.weeks.length)h+=`<div class="card"><details><summary class="row">History <span class="mute">${S.weeks.length} week${S.weeks.length>1?'s':''} ▾</span></summary>${S.weeks.map(x=>`<div style="margin-top:14px"><div class="row"><b>Week of ${x.week}</b>${S.admin?'':`<b>$${x.pay.toFixed(2)}</b>`}</div><div class="mute" style="font-size:13px">${S.admin?x.hours+' h':x.hours+' h · reg '+x.regular+' · OT '+x.overtime}</div>${x.shifts.map(s=>`<div class="shift"><span>${esc(s.job)}<br><span class="mute">${esc(s.in)} → ${esc(s.out.replace(/^\w+ \w+ \d+, /,''))}</span></span><b>${s.hours} h</b></div>`).join('')}</div>`).join('')}</details></div>`;
+ if(S.weeks.length)h+=`<div class="card"><details ${ed?'open':''}><summary class="row">History <span class="mute">${S.weeks.length} week${S.weeks.length>1?'s':''} ▾</span></summary>${S.weeks.map(x=>`<div style="margin-top:14px"><div class="row"><b>Week of ${x.week}</b>${S.admin?'':`<b>$${x.pay.toFixed(2)}</b>`}</div><div class="mute" style="font-size:13px">${S.admin?x.hours+' h':x.hours+' h · reg '+x.regular+' · OT '+x.overtime}</div>${(x.shifts||[]).map(histShift).join('')}</div>`).join('')}</details></div>`;
  m.innerHTML=h;requestAnimationFrame(()=>document.querySelectorAll('.bar i').forEach(b=>b.style.width=b.dataset.w+'%'));
  if(S.open){const t0=new Date(S.open.inIso).getTime(),f=()=>{const e=$('tm');if(e)e.textContent=fmtT(Date.now()-t0);};f();tick=setInterval(f,1000);renderRooms();startRoomPoll();}else if(roomPoll){clearInterval(roomPoll);roomPoll=null;}}
 async function punch(){if(man&&man.busy)return;const b=$('pb'),wasOpen=S.open,lbl=b.textContent;b.disabled=true;b.innerHTML='<span class="spin"></span>';
@@ -216,13 +230,10 @@ function manualWhenOk(date,time){date=String(date||'').trim();time=String(time||
  const y=+date.slice(0,4),mo=+date.slice(5,7),d=+date.slice(8,10),utc=new Date(Date.UTC(y,mo-1,d));if(utc.getUTCFullYear()!==y||utc.getUTCMonth()!==mo-1||utc.getUTCDate()!==d)return '';return date+' '+time;}
 function manualErr(date,time,reason,jobName,outDate,outTime){const j=jobName||job;if(!j||!S||!Array.isArray(S.jobs)||S.jobs.indexOf(j)<0)return 'Pick a school';
  const ent=manualWhenOk(date,time);if(!ent)return 'Enter a valid time in.';
- const now=normEt(etParts()),nowK=now.date+' '+now.time;
- if(!now.time)return 'Enter a valid time in.';if(ent>nowK)return 'Time in can’t be in the future.';
  if(!String(reason||'').replace(/\s+/g,' ').trim())return 'Enter a short reason (for example, forgot to clock in).';
  const ot=String(outTime||'').trim();if(!ot)return '';
  const od=String(outDate||'').trim()||String(date||'').trim(),outK=manualWhenOk(od,ot);if(!outK)return 'Enter a valid time out.';
- if(outK<=ent)return 'Time out must be after time in.';if(outK>nowK)return 'Time out can’t be in the future.';
- const dur=wallEtMs(od,ot)-wallEtMs(String(date).trim(),String(time).trim());if(!(dur>0))return 'Time out must be after time in.';if(dur>16*60*60*1000)return 'Shift can’t be longer than 16 hours.';return '';}
+ if(outK<=ent)return 'Time out must be after time in.';return '';}
 function wallEtMs(date,time){const y=+date.slice(0,4),mo=+date.slice(5,7),d=+date.slice(8,10),hh=+time.slice(0,2),mm=+time.slice(3,5),guess=Date.UTC(y,mo-1,d,hh,mm,0);
  const fmt=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',hourCycle:'h23',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}),o={};
  fmt.formatToParts(new Date(guess)).forEach(p=>{if(p.type!=='literal')o[p.type]=p.value;});const hour=o.hour==='24'?'00':o.hour,shown=Date.UTC(+o.year,+o.month-1,+o.day,+hour,+o.minute,0);return guess-(shown-guess);}
@@ -239,32 +250,58 @@ async function submitManual(){if(!man||man.busy)return;readManual();const err=ma
   else{if(!r.open)throw Error('The server needs an update before manual clock in works. Tell Austin.');S=r;man=null;render();toast('Clocked in ✓');}}
  catch(e){if(man){man.busy=false;man.err=e.message;}render();}}
 function manualBox(){if(!man)return `<button type="button" class="manlink" id="manLink" onclick="openManual()">Manual clock in</button>`;
- const f=man,today=normEt(etParts());
+ const f=man;
  return `<div id="manBox" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line)"><div style="font-weight:800;font-size:16px">Manual clock in</div>
   <div class="mute" style="font-size:13px;margin:4px 0 12px">Enter the time you started. Leave time out blank to stay on the clock. Fill time out to record the whole missed shift.</div>
   <div class="mute" style="font-size:13px;margin:2px 0 4px">School</div><div style="font-weight:700;margin-bottom:10px">🏫 ${esc(job||'')}</div>
-  <label class="mute" for="manDate" style="font-size:13px;font-weight:600">Date in</label><input class="field" id="manDate" type="date" max="${esc(today.date)}" value="${esc(f.date||'')}" oninput="editManual()">
+  <label class="mute" for="manDate" style="font-size:13px;font-weight:600">Date in</label><input class="field" id="manDate" type="date" value="${esc(f.date||'')}" oninput="editManual()">
   <label class="mute" for="manTime" style="font-size:13px;font-weight:600">Time in (Eastern)</label><input class="field" id="manTime" type="time" value="${esc(f.time||'')}" oninput="editManual()">
-  <label class="mute" for="manOutDate" style="font-size:13px;font-weight:600">Date out</label><input class="field" id="manOutDate" type="date" max="${esc(today.date)}" value="${esc(f.outDate||'')}" oninput="editManual()">
+  <label class="mute" for="manOutDate" style="font-size:13px;font-weight:600">Date out</label><input class="field" id="manOutDate" type="date" value="${esc(f.outDate||'')}" oninput="editManual()">
   <label class="mute" for="manOutTime" style="font-size:13px;font-weight:600">Time out (Eastern)</label><input class="field" id="manOutTime" type="time" value="${esc(f.outTime||'')}" oninput="editManual()">
   <div class="mute" style="font-size:12px;margin:-4px 0 10px">Optional. Leave blank to clock in and clock out later.</div>
   <label class="mute" for="manWhy" style="font-size:13px;font-weight:600">Reason (required)</label><input class="field" id="manWhy" maxlength="120" placeholder="e.g. forgot to clock in" value="${esc(f.reason||'')}" oninput="editManual()">
   ${f.err?`<div id="manErr" class="err-box" role="alert" style="margin-top:0;margin-bottom:10px">⚠️ ${esc(f.err)}</div>`:''}
-  <div class="mute" style="font-size:12px;margin-bottom:10px">Times are Eastern (America/New_York). Not in the future. A full shift is at most 16 hours. Hours count in the week of the time in.</div>
+  <div class="mute" style="font-size:12px;margin-bottom:10px">Times are Eastern (America/New_York). Time out must be after time in. Hours count in the week of the time in.</div>
   <div style="display:flex;gap:8px"><button type="button" class="big in" id="manGo" style="flex:1;height:52px;font-size:17px" onclick="submitManual()" ${f.busy?'disabled':''}>${f.busy?'<span class="spin"></span>':'Submit'}</button><button type="button" class="big" style="flex:none;width:110px;height:52px;font-size:16px;background:#1a2438;color:var(--ink)" onclick="closeManual()" ${f.busy?'disabled':''}>Cancel</button></div></div>`;}
 function manualTag(x,chip){const why=String((x&&x.manualReason)||'').trim();
  if(why)return ` <span class="${chip?'chip':''}" style="${chip?'background:#123044;padding:3px 8px;':''}color:#30B0F8;font-size:11px;font-weight:800" title="${esc(x.note||why)}">Manual</span>`;
  if(x&&x.manual)return chip?` <span class="chip" style="background:#2a2410;color:#fbbf24;font-size:11px;padding:3px 8px" title="${esc(x.note||'')}">MANUAL</span>`:` <span style="color:#fbbf24;font-size:11px" title="${esc(x.note||'')}">MANUAL</span>`;return '';}
 function manualWhy(x){const why=String((x&&x.manualReason)||'').trim();return why?`<span style="display:block;font-size:12px;font-weight:600;color:#30B0F8;margin-top:2px">${esc(why)}</span>`:'';}
-function startFrom(x){const from=String((x&&x.originalIn)||'').trim();if(from)return `<span style="display:block;font-size:12px;font-weight:700;color:#30B0F8;margin-top:2px">Start adjusted from ${esc(from)}</span>`;const n=String((x&&x.note)||''),m=n.match(/Start adjusted from [^|]+/);return m?`<span style="display:block;font-size:12px;font-weight:700;color:#30B0F8;margin-top:2px">${esc(m[0].trim())}</span>`:'';}
+function startFrom(x){const inn=String((x&&x.originalIn)||'').trim(),out=String((x&&x.originalOut)||'').trim();
+ if(inn&&out)return `<span style="display:block;font-size:12px;font-weight:700;color:#30B0F8;margin-top:2px">Adjusted from ${esc(inn)} to ${esc(out)}</span>`;
+ if(inn)return `<span style="display:block;font-size:12px;font-weight:700;color:#30B0F8;margin-top:2px">Adjusted from ${esc(inn)}</span>`;
+ const n=String((x&&x.note)||''),m=n.match(/Adjusted from [^|]+/)||n.match(/Start adjusted from [^|]+/);return m?`<span style="display:block;font-size:12px;font-weight:700;color:#30B0F8;margin-top:2px">${esc(m[0].trim())}</span>`:'';}
+let ed=null;
+function editErr(date,time,outDate,outTime,reason){const ent=manualWhenOk(date,time);if(!ent)return 'Enter a valid time in.';
+ const od=String(outDate||'').trim()||String(date||'').trim(),outK=manualWhenOk(od,outTime);if(!outK)return 'Enter a valid time out.';
+ if(outK<=ent)return 'Time out must be after time in.';
+ if(!String(reason||'').replace(/\s+/g,' ').trim())return 'Enter a short reason (for example, the times were wrong).';return '';}
+function readEdit(){if(!ed||ed.busy)return;const d=$('edDate'),t=$('edTime'),od=$('edOutDate'),ot=$('edOutTime'),w=$('edWhy');if(d)ed.date=d.value;if(t)ed.time=t.value;if(od)ed.outDate=od.value;if(ot)ed.outTime=ot.value;if(w)ed.reason=w.value;}
+function editEdit(){readEdit();if(ed&&ed.err){ed.err='';const e=$('edErr');if(e)e.remove();}}
+function openEdit(btn){const row=+btn.getAttribute('data-row');let found=null;(S.weeks||[]).forEach(w=>(w.shifts||[]).forEach(s=>{if(s.row===row)found=s;}));if(!found)return;
+ const a=normEt(etParts(found.inIso)),b=normEt(etParts(found.outIso));ed={row:row,inIso:found.inIso,job:found.job,date:a.date,time:a.time,outDate:b.date,outTime:b.time,reason:'',err:'',busy:false};render();const box=$('edBox');if(box&&box.scrollIntoView)try{box.scrollIntoView({block:'nearest'});}catch(e){}}
+function closeEdit(){ed=null;render();}
+async function submitEdit(){if(!ed||ed.busy)return;readEdit();const err=editErr(ed.date,ed.time,ed.outDate,ed.outTime,ed.reason);if(err){ed.err=err;render();return;}
+ const why=String(ed.reason).replace(/\s+/g,' ').trim();ed.err='';ed.busy=true;render();
+ try{const r=await call({action:'adjustPunch',code,row:ed.row,inIso:ed.inIso,date:ed.date,time:ed.time,outDate:ed.outDate,outTime:ed.outTime,reason:why},60000);
+  if(r&&r.error)throw Error(r.error);if(!r||!r.timeAdjusted)throw Error('The server needs an update before punches can be adjusted. Tell Austin.');
+  S=r;ed=null;render();toast('Times updated');}catch(e){if(ed){ed.busy=false;ed.err=e.message;}render();}}
+function editBox(s){if(!ed||ed.row!==s.row)return `<button type="button" class="manlink" id="edOpen" style="margin:6px 0 0;text-align:left" data-row="${s.row}" onclick="event.preventDefault();openEdit(this)">Adjust times</button>`;
+ const f=ed;return `<div id="edBox" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line)"><div style="font-weight:800;font-size:15px">Adjust times</div>
+ <div class="mute" style="font-size:12px;margin:4px 0 8px">${esc(s.job)}. Any date. Time out must be after time in.</div>
+ <label class="mute" for="edDate" style="font-size:13px;font-weight:600">Date in</label><input class="field" id="edDate" type="date" value="${esc(f.date||'')}" oninput="editEdit()">
+ <label class="mute" for="edTime" style="font-size:13px;font-weight:600">Time in (Eastern)</label><input class="field" id="edTime" type="time" value="${esc(f.time||'')}" oninput="editEdit()">
+ <label class="mute" for="edOutDate" style="font-size:13px;font-weight:600">Date out</label><input class="field" id="edOutDate" type="date" value="${esc(f.outDate||'')}" oninput="editEdit()">
+ <label class="mute" for="edOutTime" style="font-size:13px;font-weight:600">Time out (Eastern)</label><input class="field" id="edOutTime" type="time" value="${esc(f.outTime||'')}" oninput="editEdit()">
+ <label class="mute" for="edWhy" style="font-size:13px;font-weight:600">Reason (required)</label><input class="field" id="edWhy" maxlength="120" placeholder="e.g. times were wrong" value="${esc(f.reason||'')}" oninput="editEdit()">
+ ${f.err?`<div id="edErr" class="err-box" role="alert">⚠️ ${esc(f.err)}</div>`:''}
+ <div style="display:flex;gap:8px"><button type="button" class="big in" id="edGo" style="flex:1;height:48px;font-size:16px" onclick="submitEdit()" ${f.busy?'disabled':''}>${f.busy?'<span class="spin"></span>':'Save times'}</button><button type="button" class="big" style="flex:none;width:100px;height:48px;font-size:15px;background:#1a2438;color:var(--ink)" onclick="closeEdit()" ${f.busy?'disabled':''}>Cancel</button></div></div>`;}
+function histShift(s){const out=s.out?String(s.out).replace(/^\w+ \w+ \d+, /,''):'';return `<div class="shift" style="align-items:flex-start"><span style="flex:1">${esc(s.job)}${manualTag(s,0)}<br><span class="mute">${esc(s.in)} → ${esc(out)}</span>${manualWhy(s)}${startFrom(s)}${s.row?editBox(s):''}</span><b>${Number(s.hours).toFixed(2)} h</b></div>`;}
 let adj=null;
 function adjustErr(date,time,reason){if(!S||!S.open)return 'You are not clocked in.';
  const ent=manualWhenOk(date,time);if(!ent)return 'Enter a valid time in.';
- const now=normEt(etParts()),nowK=now.date+' '+now.time;if(!now.time)return 'Enter a valid time in.';
- if(ent>nowK)return 'Time in can’t be in the future.';
  const cur=normEt(etParts(S.open.inIso)),curK=cur.date+' '+cur.time;if(!cur.time)return 'That shift could not be read. Tell Austin.';
  if(ent>=curK)return 'The new start has to be earlier than your current start.';
- const ms=wallEtMs(String(date).trim(),String(time).trim());if(!(ms>0)||Date.now()-ms>16*60*60*1000)return 'Shift can’t be longer than 16 hours.';
  if(!String(reason||'').replace(/\s+/g,' ').trim())return 'Enter a short reason (for example, forgot to clock in).';return '';}
 function readAdjust(){if(!adj||adj.busy)return;const d=$('adjDate'),t=$('adjTime'),w=$('adjWhy');if(d)adj.date=d.value;if(t)adj.time=t.value;if(w)adj.reason=w.value;}
 function editAdjust(){readAdjust();if(adj&&adj.err){adj.err='';const e=$('adjErr');if(e)e.remove();}}
@@ -280,14 +317,14 @@ async function submitAdjust(){if(!adj||adj.busy||!S||!S.open)return;readAdjust()
   await rekeySession(oldIso,r.open.inIso);S=r;adj=null;render();toast('Start time updated');}
  catch(e){if(adj){adj.busy=false;adj.err=e.message;}render();}}
 function adjustBox(){if(!S||!S.open)return '';if(!adj)return `<button type="button" class="manlink" id="adjLink" onclick="openAdjust()">Adjust start time</button>`;
- const f=adj,today=normEt(etParts());
+ const f=adj;
  return `<div id="adjBox" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line)"><div style="font-weight:800;font-size:16px">Adjust start time</div>
   <div class="mute" style="font-size:13px;margin:4px 0 12px">Move this shift’s start earlier if you forgot to clock in. Current start: ${esc(S.open.in)}.</div>
-  <label class="mute" for="adjDate" style="font-size:13px;font-weight:600">Date in</label><input class="field" id="adjDate" type="date" max="${esc(today.date)}" value="${esc(f.date||'')}" oninput="editAdjust()">
+  <label class="mute" for="adjDate" style="font-size:13px;font-weight:600">Date in</label><input class="field" id="adjDate" type="date" value="${esc(f.date||'')}" oninput="editAdjust()">
   <label class="mute" for="adjTime" style="font-size:13px;font-weight:600">Time in (Eastern)</label><input class="field" id="adjTime" type="time" value="${esc(f.time||'')}" oninput="editAdjust()">
   <label class="mute" for="adjWhy" style="font-size:13px;font-weight:600">Reason (required)</label><input class="field" id="adjWhy" maxlength="120" placeholder="e.g. forgot to clock in" value="${esc(f.reason||'')}" oninput="editAdjust()">
   ${f.err?`<div id="adjErr" class="err-box" role="alert" style="margin-top:0;margin-bottom:10px">⚠️ ${esc(f.err)}</div>`:''}
-  <div class="mute" style="font-size:12px;margin-bottom:10px">Earlier than your current start. Not in the future. At most 16 hours from now. Hours count in the week of the new start.</div>
+  <div class="mute" style="font-size:12px;margin-bottom:10px">Any earlier date and time. Hours count in the week of the new start.</div>
   <div style="display:flex;gap:8px"><button type="button" class="big in" id="adjGo" style="flex:1;height:52px;font-size:17px" onclick="submitAdjust()" ${f.busy?'disabled':''}>${f.busy?'<span class="spin"></span>':'Save start'}</button><button type="button" class="big" style="flex:none;width:110px;height:52px;font-size:16px;background:#1a2438;color:var(--ink)" onclick="closeAdjust()" ${f.busy?'disabled':''}>Cancel</button></div></div>`;}
 function manualOutMark(x){return x&&x.manualOut?` <span style="color:#30B0F8;font-size:11px;font-weight:800">Manual out</span>`:'';}
 // ---------- Photo storage (IndexedDB, never the gallery) ----------
