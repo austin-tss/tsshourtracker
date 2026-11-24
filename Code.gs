@@ -1,4 +1,4 @@
-// TSShourtracker backend: Google Apps Script bound to a Google Sheet. Code.gs v50.
+// TSShourtracker backend: Google Apps Script bound to a Google Sheet. Code.gs v51.
 // Deploy > New deployment > Web app, Execute as: Me, Access: Anyone. Paste the /exec URL into index.html (API const).
 const TZ='America/New_York';
 // Clock in/out mail always goes here. EMP to/cc must not send anywhere else.
@@ -68,15 +68,40 @@ function sh(){const ss=SpreadsheetApp.getActive();let s=ss.getSheetByName('Punch
 // one-time heal: format the PIN column as text and pad numbers like 123 -> '0123'
 function fixPinCol_(s,col){const n=s.getMaxRows();s.getRange(2,col,Math.max(1,n-1),1).setNumberFormat('@');const last=s.getLastRow();if(last<2)return;const r=s.getRange(2,col,last-1,1),v=r.getValues();let ch=false;
  const o=v.map(x=>{const p=pin_(x[0]);if(String(x[0])!==p){ch=true;}return [p];});if(ch)r.setValues(o);}
-function rows(code){return sh().getDataRange().getValues().slice(1).map((r,i)=>({row:i+2,code:pin_(r[0]),name:r[1],job:r[2],inT:r[3],outT:r[4],hours:r[5],note:String(r[8]||''),manualReason:String(r[10]||''),origIn:r[13]||'',origOut:r[14]||''})).filter(r=>r.code===code);}
+function parseBreaks_(raw){if(raw==null||raw==='')return [];try{const a=typeof raw==='string'?JSON.parse(raw):raw;if(!Array.isArray(a))return [];return a.map(function(b){return {s:String((b&&(b.s||b.start))||''),e:String((b&&(b.e||b.end))||'')};}).filter(function(b){return b.s;});}catch(e){return [];}}
+function openBreak_(breaks){const a=breaks||[];for(let i=a.length-1;i>=0;i--)if(!a[i].e)return a[i];return null;}
+function breakMs_(breaks,endCap){let ms=0;(breaks||[]).forEach(function(b){const s=new Date(b.s).getTime();if(isNaN(s))return;const e=b.e?new Date(b.e).getTime():(endCap?new Date(endCap).getTime():NaN);if(!isNaN(e)&&e>s)ms+=e-s;});return ms;}
+function workedHours_(inT,outT,breaks){const a=new Date(inT).getTime(),b=new Date(outT).getTime();if(isNaN(a)||isNaN(b)||b<=a)return 0;return Math.max(0,(b-a-breakMs_(breaks,b))/36e5);}
+function breakMin_(breaks,endCap){return Math.round(breakMs_(breaks,endCap)/60000);}
+function rows(code){return sh().getDataRange().getValues().slice(1).map((r,i)=>({row:i+2,code:pin_(r[0]),name:r[1],job:r[2],inT:r[3],outT:r[4],hours:r[5],note:String(r[8]||''),manualReason:String(r[10]||''),origIn:r[13]||'',origOut:r[14]||'',breaks:parseBreaks_(r[15]),breakMin:Number(r[16]||0)})).filter(r=>r.code===code);}
 function fmt(d){return Utilities.formatDate(new Date(d),TZ,'EEE MMM d, h:mm a')+' ET';}
 function origInLabel_(v){if(v==null||v==='')return '';try{const d=new Date(v);if(isNaN(d.getTime()))return '';return fmt(d);}catch(e){return '';}}
 function weekKey(d){const p=Utilities.formatDate(new Date(d),TZ,'yyyy-MM-dd-u').split('-').map(Number);const t=new Date(Date.UTC(p[0],p[1]-1,p[2]-(p[3]%7)));return Utilities.formatDate(t,'UTC','yyyy-MM-dd');}// week = Sunday 00:00 to Saturday 23:59:59 ET; key = Sunday date
-function summary(code){const e=EMP[code],rs=rows(code),weeks={},admin=e.admin===true;
- rs.filter(r=>r.outT).forEach(r=>{const k=weekKey(r.inT);(weeks[k]=weeks[k]||{week:k,hours:0,shifts:[]});weeks[k].hours+=Number(r.hours);weeks[k].shifts.push({row:r.row,job:r.job,in:fmt(r.inT),out:fmt(r.outT),inIso:String(r.inT),outIso:String(r.outT),hours:+Number(r.hours).toFixed(2),manual:!!r.note,manualReason:r.manualReason,note:r.note,originalIn:origInLabel_(r.origIn),originalOut:origInLabel_(r.origOut)});});
- const list=Object.values(weeks).sort((a,b)=>a.week<b.week?1:-1).map(w=>{if(admin){const h=+Number(w.hours).toFixed(2);return {...w,hours:h,regular:h,overtime:0,pay:0};}const p=weekPay_(w.hours,e.rate,otEligible_(e));
-  return {...w,hours:+w.hours.toFixed(2),regular:p.regular,overtime:p.overtime,pay:p.pay};});
- const open=rs.find(r=>!r.outT);const o={name:e.name,rate:admin?null:e.rate,admin:admin,otEligible:admin?false:otEligible_(e),jobs:jobsList(),addrs:addrMap(),folders:folderMap(),open:open?{job:open.job,in:fmt(open.inT),inIso:String(open.inT)}:null,weeks:list,manager:!!e.manager,plan:PLAN};
+// $50 once per employee per Eastern calendar day with any worked time at an away job. Not part of the hourly/OT base.
+const PER_DIEM_RATE=50;
+// away:true only where the city is known. Blank Masters col F uses this. Anything not listed stays home base.
+const JOB_AWAY={'WT Moore':false,'Ruediger':false,'Swift Creek':false,'Astoria':false,'Kate Sullivan ES':false,'Leon HS':false,'TSS':false,'Legacy ECHS (TX)':true,'Legacy HS college TX':true,'Melrose ES':true};
+function etDay_(d){return Utilities.formatDate(new Date(d),TZ,'yyyy-MM-dd');}
+function nextEtDay_(ymd){const p=String(ymd).split('-').map(Number);return Utilities.formatDate(new Date(Date.UTC(p[0],p[1]-1,p[2]+1)),'UTC','yyyy-MM-dd');}
+function punchCoverDays_(r){const start=new Date(r.inT);if(isNaN(start.getTime()))return [];const end=r.outT?new Date(r.outT):new Date();if(isNaN(end.getTime())||end.getTime()<=start.getTime())return [];
+ const worked=r.outT?Number(r.hours):workedHours_(r.inT,end,r.breaks||[]);if(!(worked>0))return [];
+ const last=etDay_(new Date(end.getTime()-1)),days=[];let d=etDay_(start);for(let i=0;i<14&&d<=last;i++){days.push(d);d=nextEtDay_(d);}return days;}
+function awayMap_(){const m=mastersSheet(),v=m.getDataRange().getValues(),o={};if(String((v[0]||[])[5]||'')!=='away')m.getRange(1,6).setValue('away');
+ for(let i=1;i<v.length;i++){const j=String(v[i][0]||'').trim();if(!j||String(v[i][3]||'').trim())continue;const flag=String(v[i][5]||'').trim().toLowerCase();
+  if(flag==='yes'||flag==='y'||flag==='away'||flag==='1')o[j]=true;else if(flag==='no'||flag==='n'||flag==='home'||flag==='0')o[j]=false;else o[j]=JOB_AWAY[j]===true;}
+ Object.keys(JOB_AWAY).forEach(function(j){if(o[j]===undefined)o[j]=JOB_AWAY[j]===true;});return o;}
+function perDiemWeeks_(punches,away){const by={};(punches||[]).forEach(function(r){if(!away[r.job])return;punchCoverDays_(r).forEach(function(day){const noon=Utilities.parseDate(day+' 12:00',TZ,'yyyy-MM-dd HH:mm');const wk=weekKey(noon);const id=(r.code||'')+'|'+wk;(by[id]=by[id]||{});by[id][day]=1;});});return by;}
+function perDiemOf_(by,code,wk){const n=Object.keys(by[code+'|'+wk]||{}).length;return {days:n,amount:+(n*PER_DIEM_RATE).toFixed(2)};}
+function setAway(p,e){if(!e||e.manager!==true)return {error:'Not authorized'};const job=String(p.job||'').trim();if(!isJob(job))return {error:'School not found'};
+ const m=mastersSheet(),v=m.getDataRange().getValues();if(String((v[0]||[])[5]||'')!=='away')m.getRange(1,6).setValue('away');
+ for(let i=1;i<v.length;i++)if(String(v[i][0]||'').trim()===job)m.getRange(i+1,6).setValue(p.away?'yes':'no');
+ return {ok:true,away:awayMap_(),jobs:jobsList(),addrs:addrMap(),folders:folderMap()};}
+function summary(code){const e=EMP[code],rs=rows(code),weeks={},admin=e.admin===true,away=awayMap_(),pd=perDiemWeeks_(rs.map(function(r){return {code:code,job:r.job,inT:r.inT,outT:r.outT,hours:r.hours,breaks:r.breaks};}),away);
+ rs.filter(r=>r.outT).forEach(r=>{const k=weekKey(r.inT);(weeks[k]=weeks[k]||{week:k,hours:0,shifts:[]});weeks[k].hours+=Number(r.hours);weeks[k].shifts.push({row:r.row,job:r.job,in:fmt(r.inT),out:fmt(r.outT),inIso:String(r.inT),outIso:String(r.outT),hours:+Number(r.hours).toFixed(2),breakMin:r.breakMin||breakMin_(r.breaks,r.outT),manual:!!r.note,manualReason:r.manualReason,note:r.note,originalIn:origInLabel_(r.origIn),originalOut:origInLabel_(r.origOut)});});
+ Object.keys(pd).forEach(function(id){const wk=id.split('|')[1];if(wk&&!weeks[wk])weeks[wk]={week:wk,hours:0,shifts:[]};});
+ const list=Object.values(weeks).sort((a,b)=>a.week<b.week?1:-1).map(w=>{const diem=perDiemOf_(pd,code,w.week);if(admin){const h=+Number(w.hours).toFixed(2);return {...w,hours:h,regular:h,overtime:0,pay:0,perDiemDays:diem.days,perDiem:diem.amount};}const p=weekPay_(w.hours,e.rate,otEligible_(e));
+  return {...w,hours:+w.hours.toFixed(2),regular:p.regular,overtime:p.overtime,pay:p.pay,perDiemDays:diem.days,perDiem:diem.amount};});
+ const open=rs.find(r=>!r.outT),ob=open?openBreak_(open.breaks):null;const o={name:e.name,rate:admin?null:e.rate,admin:admin,otEligible:admin?false:otEligible_(e),jobs:jobsList(),addrs:addrMap(),away:away,folders:folderMap(),open:open?{job:open.job,in:fmt(open.inT),inIso:String(open.inT),onBreak:!!ob,breakStart:ob?ob.s:'',breakMin:breakMin_(open.breaks,new Date()),breaks:open.breaks||[]}:null,weeks:list,manager:!!e.manager,plan:PLAN};
  if(e.mileage){o.mileage=true;try{o.weekMileage=mileageGet(code);}catch(x){o.weekMileage={ok:false,week:weekKey(new Date()),start:null,end:null,total:null};}}
  return o;}
 
@@ -224,11 +249,12 @@ function managerData(e,p){if(!e||e.manager!==true)return {error:'Not authorized'
 function managerData_(q){
  const ss=SpreadsheetApp.getActive(),now=new Date(),cut=new Date(now.getTime()-14*864e5),thisW=weekKey(now),prevW=weekKey(new Date(now.getTime()-7*864e5));
  const tab=n=>{const t=ss.getSheetByName(n);return t?t.getDataRange().getValues().slice(1):[];},ts=v=>v instanceof Date?Utilities.formatDate(v,TZ,'yyyy-MM-dd HH:mm:ss'):String(v);
- const P=tab('Punches').map((r,i)=>{const flag=String(r[9]||'').trim().toLowerCase(),why=String(r[10]||'').trim(),outFlag=String(r[12]||'').trim().toLowerCase();return {row:i+2,note:String(r[8]||''),manualFlag:flag==='yes'||flag==='y'||flag==='1'||flag==='true',manualReason:why,submitted:r[11]||'',manualOut:outFlag==='yes'||outFlag==='y'||outFlag==='1'||outFlag==='true',originalIn:origInLabel_(r[13]),originalOut:origInLabel_(r[14]),code:pin_(r[0]),name:r[1],job:r[2],inT:r[3],outT:r[4],hours:Number(r[5]||0),photos:Number(r[6]||0),folder:r[7]||''};}).filter(r=>r.inT);
- const onNow=P.filter(r=>!r.outT).map(r=>({row:r.row,name:r.name,code:r.code,job:r.job,since:fmt(r.inT),inIso:String(r.inT),hours:+((now-new Date(r.inT))/36e5).toFixed(2),manual:r.manualFlag||!!r.note,manualReason:r.manualReason,note:r.note,originalIn:r.originalIn,originalOut:r.originalOut}));
+ const P=tab('Punches').map((r,i)=>{const flag=String(r[9]||'').trim().toLowerCase(),why=String(r[10]||'').trim(),outFlag=String(r[12]||'').trim().toLowerCase();return {row:i+2,note:String(r[8]||''),manualFlag:flag==='yes'||flag==='y'||flag==='1'||flag==='true',manualReason:why,submitted:r[11]||'',manualOut:outFlag==='yes'||outFlag==='y'||outFlag==='1'||outFlag==='true',originalIn:origInLabel_(r[13]),originalOut:origInLabel_(r[14]),breaks:parseBreaks_(r[15]),breakMin:Number(r[16]||0),code:pin_(r[0]),name:r[1],job:r[2],inT:r[3],outT:r[4],hours:Number(r[5]||0),photos:Number(r[6]||0),folder:r[7]||''};}).filter(r=>r.inT);
+ const onNow=P.filter(r=>!r.outT).map(r=>{const ob=openBreak_(r.breaks);return {row:r.row,name:r.name,code:r.code,job:r.job,since:fmt(r.inT),inIso:String(r.inT),hours:+workedHours_(r.inT,now,r.breaks).toFixed(2),onBreak:!!ob,breakStart:ob?ob.s:'',breakMin:breakMin_(r.breaks,now),manual:r.manualFlag||!!r.note,manualReason:r.manualReason,note:r.note,originalIn:r.originalIn,originalOut:r.originalOut};});
  const weeks={};P.filter(r=>r.outT).forEach(r=>{const k=weekKey(r.inT);if(k!==thisW&&k!==prevW)return;const id=r.code+'|'+k;(weeks[id]=weeks[id]||{code:r.code,week:k,hours:0}).hours+=r.hours;});
- const totals=payCodes_().map(c=>{const x=EMP[c],elig=otEligible_(x),f=k=>{const h=(weeks[c+'|'+k]||{hours:0}).hours,p=weekPay_(h,x.rate,elig);return {hours:+h.toFixed(2),overtime:p.overtime,pay:p.pay};};return {code:c,name:x.name,rate:x.rate,otEligible:elig,thisWeek:f(thisW),lastWeek:f(prevW)};});
- const shifts=P.filter(r=>new Date(r.inT)>=cut).map(r=>{const emp=EMP[r.code]||{},paid=paid_(emp);return {row:r.row,note:r.note,manual:r.manualFlag||!!r.note,manualReason:r.manualReason,manualOut:!!r.manualOut,originalIn:r.originalIn,originalOut:r.originalOut,outIso:String(r.outT||''),name:r.name,code:r.code,job:r.job,in:fmt(r.inT),inIso:String(r.inT),out:r.outT?fmt(r.outT):'',hours:+r.hours.toFixed(2),pay:paid?+(r.hours*(emp.rate||0)).toFixed(2):null,photos:r.photos,folder:r.folder};}).reverse();
+ const away=awayMap_(),pd=perDiemWeeks_(P,away);
+ const totals=payCodes_().map(c=>{const x=EMP[c],elig=otEligible_(x),f=k=>{const h=(weeks[c+'|'+k]||{hours:0}).hours,p=weekPay_(h,x.rate,elig),d=perDiemOf_(pd,c,k);return {hours:+h.toFixed(2),overtime:p.overtime,pay:p.pay,perDiemDays:d.days,perDiem:d.amount};};return {code:c,name:x.name,rate:x.rate,otEligible:elig,thisWeek:f(thisW),lastWeek:f(prevW)};});
+ const shifts=P.filter(r=>new Date(r.inT)>=cut).map(r=>{const emp=EMP[r.code]||{},paid=paid_(emp);return {row:r.row,note:r.note,manual:r.manualFlag||!!r.note,manualReason:r.manualReason,manualOut:!!r.manualOut,originalIn:r.originalIn,originalOut:r.originalOut,breakMin:r.breakMin||breakMin_(r.breaks,r.outT||now),onBreak:!r.outT&&!!openBreak_(r.breaks),outIso:String(r.outT||''),name:r.name,code:r.code,job:r.job,in:fmt(r.inT),inIso:String(r.inT),out:r.outT?fmt(r.outT):'',hours:+(r.outT?r.hours:workedHours_(r.inT,now,r.breaks)).toFixed(2),pay:paid?+((r.outT?r.hours:workedHours_(r.inT,now,r.breaks))*(emp.rate||0)).toFixed(2):null,photos:r.photos,folder:r.folder};}).reverse();
  const photos=[],ckMap={},t0=Date.now(),cap=()=>photos.length<200&&Date.now()-t0<8000;try{jobsList().forEach(j=>{const mf=masterFolder(j),fs=mf.getFolders();while(fs.hasNext()&&cap()){const rf=fs.next(),it=rf.getFiles();while(it.hasNext()&&Date.now()-t0<8000){const f=it.next(),d=f.getDateCreated(),nm=f.getName(),hit=ckMatchItem_(rf.getName(),nm);
   if(hit){const k=j+'|'+rf.getName();(ckMap[k]=ckMap[k]||{job:j,room:rf.getName(),got:{}}).got[hit]=1;}
   if(d>=cut&&cap())photos.push({job:j,room:rf.getName(),name:nm,url:f.getUrl(),time:Utilities.formatDate(d,TZ,'yyyy-MM-dd HH:mm'),checklist:!!hit||nm.indexOf(rf.getName()+' ')!==0});}}});}catch(x){}
@@ -237,9 +263,10 @@ function managerData_(q){
  const receipts=tab('Expenses').map(r=>({time:ts(r[0]),code:pin_(r[1]),name:r[2],note:r[3],url:r[4],vendor:r[5]||'',date:r[6] instanceof Date?Utilities.formatDate(r[6],TZ,'yyyy-MM-dd'):String(r[6]||''),total:r[7]===''?null:r[7],category:r[8]||''})).reverse().slice(0,200);
  const support=tab('Support').map(r=>({time:ts(r[0]),code:pin_(r[1]),name:r[2],question:r[3],photos:r[4],answer:r[5],offTopic:!!r[6]})).reverse().slice(0,200);
  const weeksAvail=[...new Set(P.map(r=>weekKey(r.inT)).concat([thisW]))].sort().reverse(),selW=weeksAvail.indexOf(String(q.week||''))>=0?String(q.week):thisW;
- const week={week:selW,list:payCodes_().map(c=>{const x=EMP[c],elig=otEligible_(x),ss=P.filter(r=>r.code===c&&weekKey(r.inT)===selW),h=ss.filter(r=>r.outT).reduce((a,r)=>a+r.hours,0),p=weekPay_(h,x.rate,elig);
-  return {code:c,name:x.name,rate:x.rate,otEligible:elig,hours:+h.toFixed(2),overtime:p.overtime,pay:p.pay,shifts:ss.map(r=>({row:r.row,job:r.job,in:fmt(r.inT),out:r.outT?fmt(r.outT):'',open:!r.outT,hours:+r.hours.toFixed(2),manual:r.manualFlag||!!r.note,manualReason:r.manualReason,manualOut:!!r.manualOut,originalIn:r.originalIn,originalOut:r.originalOut,note:r.note}))};})};
- return {ok:true,week:week,weeks:weeksAvail,jobs:jobsList(),addrs:addrMap(),folders:folderMap(),generated:fmt(now),thisWeek:thisW,lastWeek:prevW,onNow,totals,shifts,photos,checklistRooms:checklistRooms,roomDeletions:roomDelRows_(),receipts,support};}
+ const week={week:selW,list:payCodes_().map(c=>{const x=EMP[c],elig=otEligible_(x),ss=P.filter(r=>r.code===c&&weekKey(r.inT)===selW),h=ss.filter(r=>r.outT).reduce((a,r)=>a+r.hours,0),p=weekPay_(h,x.rate,elig),d=perDiemOf_(pd,c,selW);
+  return {code:c,name:x.name,rate:x.rate,otEligible:elig,hours:+h.toFixed(2),overtime:p.overtime,pay:p.pay,perDiemDays:d.days,perDiem:d.amount,shifts:ss.map(r=>({row:r.row,job:r.job,in:fmt(r.inT),out:r.outT?fmt(r.outT):'',open:!r.outT,hours:+(r.outT?r.hours:workedHours_(r.inT,now,r.breaks)).toFixed(2),breakMin:r.breakMin||breakMin_(r.breaks,r.outT||now),onBreak:!r.outT&&!!openBreak_(r.breaks),manual:r.manualFlag||!!r.note,manualReason:r.manualReason,manualOut:!!r.manualOut,originalIn:r.originalIn,originalOut:r.originalOut,note:r.note}))};})};
+ const perDiem=Object.keys(EMP).map(function(c){const d=perDiemOf_(pd,c,selW);return {code:c,name:EMP[c].name,admin:EMP[c].admin===true,days:d.days,amount:d.amount};}).filter(function(x){return x.days>0;});
+ return {ok:true,week:week,weeks:weeksAvail,jobs:jobsList(),addrs:addrMap(),away:away,folders:folderMap(),generated:fmt(now),thisWeek:thisW,lastWeek:prevW,onNow,totals,perDiem:perDiem,shifts,photos,checklistRooms:checklistRooms,roomDeletions:roomDelRows_(),receipts,support};}
 // Room delete: trash the room Drive folder (recoverable 30 days) and log who did it. Any logged-in employee.
 function roomDelSheet_(){const ss=SpreadsheetApp.getActive();let s=ss.getSheetByName('Room deletions');if(!s){s=ss.insertSheet('Room deletions');s.appendRow(['time_et','code','name','job','folder','photos']);s.setFrozenRows(1);}return s;}
 function roomDelRows_(){try{const s=roomDelSheet_(),v=s.getDataRange().getValues().slice(1);return v.filter(r=>r[0]).slice(-80).reverse().map(r=>({time:r[0] instanceof Date?Utilities.formatDate(r[0],TZ,'yyyy-MM-dd HH:mm:ss'):String(r[0]),code:pin_(r[1]),name:r[2],job:r[3],folder:r[4],photos:Number(r[5]||0)}));}catch(x){return [];}}
@@ -328,9 +355,11 @@ function mgrHours(p,e){if(!e||e.manager!==true)return {error:'Not authorized'};c
   const er=chk(a,b,0);if(er)return {error:er};s.appendRow([pinW_(p.emp),w.name,p.job,a.toISOString(),b.toISOString(),((b-a)/36e5).toFixed(4),'','','Manual: added by '+e.name+' '+stamp+' - '+why]);return {ok:true};}
  const r=all.find(x=>x.row===Number(p.row)&&String(x.inT)===String(p.inIso));if(!r)return {error:'That shift changed. Refresh and try again.'};
  if(op==='close'){if(r.outT)return {error:'That shift is already clocked out. Refresh.'};const a=new Date(r.inT),b=mgrTime_(p.outDate,p.outTime);const er=chk(a,b,r.row);if(er)return {error:er};
-  s.getRange(r.row,5,1,2).setValues([[b.toISOString(),((b-a)/36e5).toFixed(4)]]);s.getRange(r.row,9).setValue((r.note?r.note+' | ':'')+'Clock-out set by '+e.name+' '+stamp+' - '+why);return {ok:true};}
+  const br=r.breaks||[],ob=openBreak_(br);if(ob)ob.e=b.toISOString();const hrs=workedHours_(a,b,br);
+  s.getRange(r.row,5,1,2).setValues([[b.toISOString(),hrs.toFixed(4)]]);s.getRange(r.row,9).setValue((r.note?r.note+' | ':'')+'Clock-out set by '+e.name+' '+stamp+' - '+why);
+  if(br.length){punchExtraCols_();s.getRange(r.row,16,1,2).setValues([[JSON.stringify(br),breakMin_(br,b)]]); }return {ok:true};}
  if(op==='edit'){if(!r.outT)return {error:'Use Fix open shift for someone still clocked in'};const a=mgrTime_(p.date,p.inTime),b=mgrTime_(p.outDate||p.date,p.outTime);const er=chk(a,b,r.row);if(er)return {error:er};
-  s.getRange(r.row,4,1,3).setValues([[a.toISOString(),b.toISOString(),((b-a)/36e5).toFixed(4)]]);s.getRange(r.row,9).setValue((r.note?r.note+' | ':'')+'Edited by '+e.name+' '+stamp+' (was '+fmt(r.inT)+' to '+fmt(r.outT)+') - '+why);return {ok:true};}
+  s.getRange(r.row,4,1,3).setValues([[a.toISOString(),b.toISOString(),workedHours_(a,b,r.breaks||[]).toFixed(4)]]);s.getRange(r.row,9).setValue((r.note?r.note+' | ':'')+'Edited by '+e.name+' '+stamp+' (was '+fmt(r.inT)+' to '+fmt(r.outT)+') - '+why);return {ok:true};}
  return {error:'Unknown action'};}
 // ===== Employee manual clock in / manual shift. Code.gs v42. No 24-hour lookback; weekKey(inT) places hours in the week of time in.
 // Columns after note: J manual, K manual_reason, L submitted_at, M manual_out (yes when time out was typed).
@@ -343,6 +372,8 @@ function punchExtraCols_(){const s=sh();
  if(String(s.getRange(1,13).getValue())!=='manual_out')s.getRange(1,13).setValue('manual_out');
  if(String(s.getRange(1,14).getValue())!=='original_in')s.getRange(1,14).setValue('original_in');
  if(String(s.getRange(1,15).getValue())!=='original_out')s.getRange(1,15).setValue('original_out');
+ if(String(s.getRange(1,16).getValue())!=='breaks')s.getRange(1,16).setValue('breaks');
+ if(String(s.getRange(1,17).getValue())!=='break_min')s.getRange(1,17).setValue('break_min');
  return s;}
 function hmKey_(t){const m=String(t||'').trim().match(/^(\d{1,2}):(\d{2})$/);if(!m)return '';const h=+m[1],mm=+m[2];if(h>23||mm>59)return '';return ('0'+h).slice(-2)+':'+m[2];}
 function manualWhen_(date,hm){const d=mgrTime_(date,hm);if(!d||Utilities.formatDate(d,TZ,'yyyy-MM-dd HH:mm')!==date+' '+hm)return null;return d;}
@@ -401,7 +432,7 @@ function adjustPunch(p,e){
  if(!r||!r.outT)return {error:'That shift changed. Refresh and try again.'};
  const hit=all.find(function(x){if(x.row===r.row||!x.outT)return false;const a=new Date(x.inT),b=new Date(x.outT);return !isNaN(a.getTime())&&!isNaN(b.getTime())&&a<out&&b>entered;});
  if(hit)return {error:'That time overlaps your shift at '+hit.job+' ('+fmt(hit.inT)+' – '+fmt(hit.outT)+').'};
- const s=punchExtraCols_(),now=new Date(),wasIn=fmt(r.inT),wasOut=fmt(r.outT),hrs=(out.getTime()-entered.getTime())/36e5;
+ const s=punchExtraCols_(),now=new Date(),wasIn=fmt(r.inT),wasOut=fmt(r.outT),hrs=workedHours_(entered,out,r.breaks||[]);
  const note=(r.note?r.note+' | ':'')+'Adjusted from '+wasIn+' to '+wasOut;
  s.getRange(r.row,4,1,3).setValues([[entered.toISOString(),out.toISOString(),hrs.toFixed(4)]]);
  s.getRange(r.row,9,1,4).setValues([[note,'yes',why,now.toISOString()]]);
@@ -409,6 +440,15 @@ function adjustPunch(p,e){
  if(!r.origOut)s.getRange(r.row,15).setValue(new Date(r.outT).toISOString());
  MailApp.sendEmail(CLOCK_TO,'TSShourtracker: TIME ADJUSTED - '+r.job,e.name+' adjusted a punch\nJob: '+r.job+'\nWas in: '+wasIn+'\nWas out: '+wasOut+'\nNow in: '+fmt(entered)+'\nNow out: '+fmt(out)+'\nShift hours: '+hrs.toFixed(2)+'\nReason: '+why+'\nSubmitted: '+fmt(now));
  const o=summary(p.code);o.timeAdjusted=true;return o;}
+// Unpaid breaks. Columns P/Q (breaks JSON, break_min) are added at the end so older punch columns stay put.
+function saveBreaks_(row,breaks,endCap){const s=punchExtraCols_();s.getRange(row,16,1,2).setValues([[JSON.stringify(breaks||[]),breakMin_(breaks,endCap)]]);}
+function setBreak_(p,e){const open=rows(p.code).find(function(r){return !r.outT;});if(!open)return {error:'You are not clocked in.'};
+ const breaks=open.breaks||[],ob=openBreak_(breaks),now=new Date(),ending=!!p.end;
+ if(ending){if(!ob)return {error:'You are not on break.'};ob.e=now.toISOString();
+  MailApp.sendEmail(CLOCK_TO,'TSShourtracker: BREAK END - '+open.job,e.name+' ended a break\nJob: '+open.job+'\nStarted: '+fmt(ob.s)+'\nEnded: '+fmt(now)+'\nBreak minutes: '+Math.max(1,Math.round((now-new Date(ob.s))/60000)));}
+ else{if(ob)return {error:'You are already on break.'};breaks.push({s:now.toISOString(),e:''});
+  MailApp.sendEmail(CLOCK_TO,'TSShourtracker: BREAK START - '+open.job,e.name+' started a break\nJob: '+open.job+'\nTime: '+fmt(now));}
+ saveBreaks_(open.row,breaks,now);const o=summary(p.code);o.breakSet=true;return o;}
 // ===== QuickBooks Online (manager only). Script Properties: QBO_CLIENT_ID, QBO_CLIENT_SECRET (Intuit developer app), optional QBO_ENV=sandbox.
 // Tokens/realm live in Script Properties (QBO_TOKENS, QBO_REALM). Redirect URI = this web app's /exec URL (handled by doGet).
 const QBO_SCOPE='com.intuit.quickbooks.accounting',QBO_MINOR='75';
@@ -482,6 +522,7 @@ function doPost(ev){let lock=null;try{
  if(p.action==='deljob'){lock=LockService.getScriptLock();lock.waitLock(20000);return out(delJob(p,e));}// manager only, hides school
  if(p.action==='findaddr')return out(findAddr(p));// any employee; lookup only
  if(p.action==='setaddr'){lock=LockService.getScriptLock();lock.waitLock(20000);return out(setAddr(p));}
+ if(p.action==='setaway'){lock=LockService.getScriptLock();lock.waitLock(20000);return out(setAway(p,e));}
  if(p.action==='addjob'){lock=LockService.getScriptLock();lock.waitLock(20000);return out(addJob(p.name));}
  if(p.action==='ask')return out(ask(p,e));
  if(p.action==='rooms')return out(listRooms_(p.job));// shared room list for whoever is clocked in at this school. Does not create folders.
@@ -496,12 +537,14 @@ function doPost(ev){let lock=null;try{
  if(p.action==='manualIn'){lock=LockService.getScriptLock();lock.waitLock(20000);return out(manualIn(p,e));}
  if(p.action==='adjustStart'){lock=LockService.getScriptLock();lock.waitLock(20000);return out(adjustStart(p,e));}
  if(p.action==='adjustPunch'){lock=LockService.getScriptLock();lock.waitLock(20000);return out(adjustPunch(p,e));}
+ if(p.action==='break'){lock=LockService.getScriptLock();lock.waitLock(20000);return out(setBreak_(p,e));}
  if(p.action==='punch'){lock=LockService.getScriptLock();lock.waitLock(20000);const open=rows(p.code).find(r=>!r.outT),now=new Date();
   if(!open){if(!isJob(p.job))return out({error:'Pick a school'});
    sh().appendRow([pinW_(p.code),e.name,p.job,now.toISOString(),'','']);
    MailApp.sendEmail(CLOCK_TO,'TSShourtracker: Clocked in - '+p.job,e.name+' clocked in\nJob: '+p.job+'\nTime: '+fmt(now));}
-  else{const h=(now-new Date(open.inT))/36e5,np=Number(p.photos||0);let pl='';if(np>0){try{pl='\nPhotos: '+np+' uploading to '+masterFolder(open.job).getUrl();}catch(x){pl='\nPhotos: '+np+' uploading';}}sh().getRange(open.row,5,1,2).setValues([[now.toISOString(),h.toFixed(4)]]);
-   MailApp.sendEmail(CLOCK_TO,'TSShourtracker: Clocked out - '+open.job,e.name+' clocked out\nJob: '+open.job+'\nIn: '+fmt(open.inT)+'\nOut: '+fmt(now)+'\nShift hours: '+h.toFixed(2)+pl+(e.shiftPay?shiftPayReport(p.code,open.inT,h):'')+(e.weekReport?weekReport(p.code,open.inT):''));}}
+  else{const br=open.breaks||[],ob=openBreak_(br);if(ob)ob.e=now.toISOString();const h=workedHours_(open.inT,now,br),np=Number(p.photos||0);let pl='';if(np>0){try{pl='\nPhotos: '+np+' uploading to '+masterFolder(open.job).getUrl();}catch(x){pl='\nPhotos: '+np+' uploading';}}
+   sh().getRange(open.row,5,1,2).setValues([[now.toISOString(),h.toFixed(4)]]);if(br.length)saveBreaks_(open.row,br,now);
+   const bm=breakMin_(br,now);MailApp.sendEmail(CLOCK_TO,'TSShourtracker: Clocked out - '+open.job,e.name+' clocked out\nJob: '+open.job+'\nIn: '+fmt(open.inT)+'\nOut: '+fmt(now)+'\nShift hours: '+h.toFixed(2)+(bm?'\nUnpaid break: '+bm+' min':'')+pl+(e.shiftPay?shiftPayReport(p.code,open.inT,h):'')+(e.weekReport?weekReport(p.code,open.inT):''));}}
  return out(summary(p.code));}finally{if(lock)lock.releaseLock();}}
 
 /* ===== TSShourtracker nightly backup (standalone; paste at end of Code.gs) =====
