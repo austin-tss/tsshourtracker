@@ -1,4 +1,4 @@
-// TSShourtracker backend: Google Apps Script bound to a Google Sheet. Code.gs v51.
+// TSShourtracker backend: Google Apps Script bound to a Google Sheet. Code.gs v52.
 // Deploy > New deployment > Web app, Execute as: Me, Access: Anyone. Paste the /exec URL into index.html (API const).
 const TZ='America/New_York';
 // Clock in/out mail always goes here. EMP to/cc must not send anywhere else.
@@ -7,22 +7,22 @@ const CLOCK_TO='siteleadtss@gmail.com';
 // otEligible:false = straight time for every hour (no 1.5x). Missing otEligible is treated as true.
 // admin:true = manager login, not a paid employee. No rate. Left out of payroll lists and week pay rollups. Clock mail still goes to CLOCK_TO.
 const EMP={
- '2647':{name:'William Griffin',email:'william@techsourcedsolutions.com',rate:30,otEligible:true,to:CLOCK_TO,cc:'',weekReport:true,shiftPay:false,mileage:true},
- '9914':{name:'Paul Sorenson',email:'paulsor3@gmail.com',rate:30,otEligible:true,to:CLOCK_TO,cc:'',weekReport:true,shiftPay:true},
+ '8654':{name:'William Griffin',email:'william@techsourcedsolutions.com',rate:30,otEligible:true,to:CLOCK_TO,cc:'',weekReport:true,shiftPay:false,mileage:true},
+ '2451':{name:'Paul Sorenson',email:'paulsor3@gmail.com',rate:30,otEligible:true,to:CLOCK_TO,cc:'',weekReport:true,shiftPay:true},
  '2525':{name:'Taylor',email:'taylor@techsourcedsolutions.com',rate:30,otEligible:true,manager:true,to:CLOCK_TO,cc:'',weekReport:true,shiftPay:true,mileage:true},
  '4821':{name:'Austin Stinson',email:'austin@techsourcedsolutions.com',manager:true,admin:true,to:CLOCK_TO,cc:'',weekReport:false,shiftPay:false},
- '0123':{name:'Mike Roberts',email:'Mike.Roberts@audioenhancement.com',rate:30,otEligible:true,to:CLOCK_TO,cc:'',weekReport:true,shiftPay:true},
- '4826':{name:'Neelam',email:'ndeyoung50@outlook.com',rate:30,otEligible:true,to:CLOCK_TO,cc:'',weekReport:true,shiftPay:true},
- '1541':{name:'Parker Bonn',email:'parkerjbonn@gmail.com',rate:25,otEligible:true,to:CLOCK_TO,cc:'',weekReport:true,shiftPay:true},
- '2812':{name:'Callie Lassiter',rate:30,otEligible:true,to:CLOCK_TO,cc:'',weekReport:true,shiftPay:true},
- '1853':{name:'Tyler Jordan',rate:27.5,otEligible:true,to:CLOCK_TO,cc:'',weekReport:true,shiftPay:true},
- '4099':{name:'Kyle McAllister',rate:28,otEligible:true,to:CLOCK_TO,cc:'',weekReport:true,shiftPay:true},
- '2565':{name:'Joe Miller',rate:27.5,otEligible:true,to:CLOCK_TO,cc:'',weekReport:true,shiftPay:true},
- '6154':{name:'Lee Ellis',rate:35,otEligible:false,to:CLOCK_TO,cc:'',weekReport:true,shiftPay:true},
- '0231':{name:'Austyn Roach',rate:25,otEligible:false,to:CLOCK_TO,cc:'',weekReport:true,shiftPay:true},
- '5710':{name:'Stratton Ponder',rate:22,otEligible:false,to:CLOCK_TO,cc:'',weekReport:true,shiftPay:true},
- '0027':{name:'Trent Phillips',rate:30,otEligible:true,to:CLOCK_TO,cc:'',weekReport:true,shiftPay:true},
- '6213':{name:'Blake Noblin',rate:20,otEligible:false,to:CLOCK_TO,cc:'',weekReport:true,shiftPay:true}};
+ '4008':{name:'Mike Roberts',email:'Mike.Roberts@audioenhancement.com',rate:30,otEligible:true,to:CLOCK_TO,cc:'',weekReport:true,shiftPay:true},
+ '4975':{name:'Neelam',email:'ndeyoung50@outlook.com',rate:30,otEligible:true,to:CLOCK_TO,cc:'',weekReport:true,shiftPay:true},
+ '6103':{name:'Parker Bonn',email:'parkerjbonn@gmail.com',rate:25,otEligible:true,to:CLOCK_TO,cc:'',weekReport:true,shiftPay:true},
+ '5497':{name:'Callie Lassiter',rate:30,otEligible:true,to:CLOCK_TO,cc:'',weekReport:true,shiftPay:true},
+ '1251':{name:'Tyler Jordan',rate:27.5,otEligible:true,to:CLOCK_TO,cc:'',weekReport:true,shiftPay:true},
+ '8883':{name:'Kyle McAllister',rate:28,otEligible:true,to:CLOCK_TO,cc:'',weekReport:true,shiftPay:true},
+ '4118':{name:'Joe Miller',rate:27.5,otEligible:true,to:CLOCK_TO,cc:'',weekReport:true,shiftPay:true},
+ '3547':{name:'Lee Ellis',rate:35,otEligible:false,to:CLOCK_TO,cc:'',weekReport:true,shiftPay:true},
+ '3783':{name:'Austyn Roach',rate:25,otEligible:false,to:CLOCK_TO,cc:'',weekReport:true,shiftPay:true},
+ '4875':{name:'Stratton Ponder',rate:22,otEligible:false,to:CLOCK_TO,cc:'',weekReport:true,shiftPay:true},
+ '5900':{name:'Trent Phillips',rate:30,otEligible:true,to:CLOCK_TO,cc:'',weekReport:true,shiftPay:true},
+ '4441':{name:'Blake Noblin',rate:20,otEligible:false,to:CLOCK_TO,cc:'',weekReport:true,shiftPay:true}};
 // Missing otEligible counts as eligible so older rows keep 1.5x over 40 hours.
 function otEligible_(e){return !e||e.otEligible!==false;}
 function paid_(e){return !e||e.admin!==true;}
@@ -223,7 +223,7 @@ function receipt(p,e){const ss=SpreadsheetApp.getActive(),n=cleanName(p.note).sl
  const d=PLAN==='paid'?normReceipt_({vendor:p.vendor,date:p.date,total:p.total,category:p.category}):{vendor:'',date:'',total:null,category:''};// free plan: scan fields are never stored
  x.appendRow([Utilities.formatDate(t,TZ,'yyyy-MM-dd HH:mm:ss'),pinW_(p.code),e.name,n,f.getUrl(),d.vendor,'',d.total===null?'':d.total,d.category]);
  const lr=x.getLastRow();x.getRange(lr,7).setNumberFormat('@').setValue(d.date);return {ok:true,url:f.getUrl(),vendor:d.vendor,date:d.date,total:d.total,category:d.category};}
-// ===== Mileage (Taylor 2525 and William 2647 only). One row per employee per Sun–Sat week on the Mileage tab. =====
+// ===== Mileage (Taylor and William only, mileage:true). One row per employee per Sun–Sat week on the Mileage tab. =====
 // Keep miles_() rules in sync with miNum() in index.html: digits, optional single tenth, 0..9999999, commas ignored.
 function miles_(v){if(v===null||v===undefined)return {empty:true};const t=String(v).trim().replace(/,/g,'');if(!t)return {empty:true};if(!/^\d+(\.\d)?$/.test(t))return {bad:true};const n=Number(t);if(!isFinite(n)||n>9999999)return {bad:true};return {n:n};}
 function weekCell_(v){if(v instanceof Date&&!isNaN(v))return Utilities.formatDate(v,TZ,'yyyy-MM-dd');const m=String(v||'').trim().match(/(\d{4}-\d{2}-\d{2})/);return m?m[1]:'';}
@@ -476,7 +476,7 @@ function qbOAuthPage_(q){const ok=t=>HtmlService.createHtmlOutput('<meta name="v
   qbProps_().deleteProperty('QBO_STATE');qbToken_({grant_type:'authorization_code',code:q.code,redirect_uri:qbRedirect_()});qbProps_().setProperty('QBO_REALM',String(q.realmId));
   try{const ci=qbApi_('get','/companyinfo/'+q.realmId).CompanyInfo;qbProps_().setProperty('QBO_COMPANY',ci.CompanyName||'');}catch(x){}
   return ok('✅ QuickBooks connected');}catch(x){return ok('⚠️ '+String(x.message).replace(/</g,''));}}
-function doGet(ev){const q=(ev&&ev.parameter)||{};if(q.code&&q.realmId)return qbOAuthPage_(q);if(q.error)return HtmlService.createHtmlOutput('QuickBooks connect canceled: '+String(q.error).replace(/</g,''));return out({ok:true});}
+function doGet(ev){try{migratePins20261125();}catch(e){}const q=(ev&&ev.parameter)||{};if(q.code&&q.realmId)return qbOAuthPage_(q);if(q.error)return HtmlService.createHtmlOutput('QuickBooks connect canceled: '+String(q.error).replace(/</g,''));return out({ok:true});}
 function qbLists_(){const c=CacheService.getScriptCache(),h=c.get('qb_lists');if(h)return JSON.parse(h);
  const cu=(qbQuery_("select Id, DisplayName from Customer where Active = true maxresults 1000").Customer||[]).map(x=>({id:x.Id,name:x.DisplayName}));
  const it=(qbQuery_("select Id, Name, Type from Item where Active = true maxresults 1000").Item||[]).filter(x=>x.Type!=='Category').map(x=>({id:x.Id,name:x.Name}));
@@ -508,7 +508,7 @@ function qbCreate(p,e){if(!e||e.manager!==true)return {error:'Not authorized'};c
   const r=qbApi_('post','/'+ent.toLowerCase(),body)[ent];
   return {ok:true,type:d.type,id:r.Id,number:r.DocNumber,total:r.TotalAmt,customer:(r.CustomerRef||{}).name||d.customer,url:'https://qbo.intuit.com/app/'+(inv?'invoice':'estimate')+'?txnId='+r.Id};}catch(x){return {error:x.message};}finally{lock.releaseLock();}}
 function out(o){return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);}
-function doPost(ev){let lock=null;try{
+function doPost(ev){try{migratePins20261125();}catch(err){return out({error:'PIN update did not finish. Try again.'});}let lock=null;try{
  const p=JSON.parse(ev.postData.contents),e=EMP[p.code];if(!e)return out({error:'Invalid code'});
  if(p.action==='qbstatus')return out(qbStatus(e));// QuickBooks: all manager-only (checked inside)
  if(p.action==='qbconnect')return out(qbConnect(e));
@@ -646,3 +646,32 @@ function migratePins20261102(){var M={'1234':'9914','7340':'2647','5917':'1541'}
  [['Punches',1],['Expenses',2],['Mileage',1],['Support',2]].forEach(function(x){var s=ss.getSheetByName(x[0]);if(!s||s.getLastRow()<2)return;
   var r=s.getRange(2,x[1],s.getLastRow()-1,1),v=r.getValues(),c=0;v.forEach(function(a){var k=String(a[0]).replace(/^'/,'').padStart(4,'0');if(M[k]){a[0]="'"+M[k];c++;}});r.setValues(v);n[x[0]]=c;});
  Logger.log(JSON.stringify(n));return n;}
+
+/** One-time: rewrite employee ids to the Nov 25 PIN reset. Runs itself on the first web request. Safe to run again. */
+function migratePins20261125(){
+ var KEY='PIN_MIGRATE_20261125',pr=PropertiesService.getScriptProperties();
+ if(pr.getProperty(KEY)==='1')return {ok:true,skipped:true};
+ var M={'2647':'8654','9914':'2451','0123':'4008','4826':'4975','1541':'6103','2812':'5497','1853':'1251','4099':'8883','2565':'4118','6154':'3547','0231':'3783','5710':'4875','0027':'5900','6213':'4441'};
+ var lock=LockService.getScriptLock();lock.waitLock(30000);
+ try{
+  if(pr.getProperty(KEY)==='1')return {ok:true,skipped:true};
+  var ss=SpreadsheetApp.getActive()||SpreadsheetApp.openById('1Rd8YFS9TOJCwI5jKkvFUWLaDBjtxrtGl5GIgcpBAAJA'),n={},sheets=ss.getSheets();
+  function normPin(v){var t=String(v==null?'':v).trim().replace(/^'/,'');return /^\d{1,4}$/.test(t)?('0000'+t).slice(-4):t;}
+  sheets.forEach(function(s){
+   var last=s.getLastRow(),cols=s.getLastColumn();if(last<1||cols<1)return;
+   var headers=s.getRange(1,1,1,cols).getValues()[0];
+   headers.forEach(function(h,i){
+    if(String(h||'').trim().toLowerCase()!=='code')return;
+    var name=s.getName()+' col '+(i+1);if(last<2){n[name]=0;return;}
+    var range=s.getRange(2,i+1,last-1,1);range.setNumberFormat('@');
+    var v=range.getValues(),c=0;
+    v.forEach(function(a){var k=normPin(a[0]);if(M[k]){a[0]="'"+M[k];c++;}});
+    if(c)range.setValues(v);n[name]=c;
+   });
+  });
+  var props=pr.getProperties();
+  Object.keys(props).forEach(function(pk){if(pk===KEY)return;var k=normPin(props[pk]);if(M[k])pr.setProperty(pk,M[k]);});
+  pr.setProperty(KEY,'1');
+  Logger.log(JSON.stringify(n));return {ok:true,counts:n};
+ }finally{lock.releaseLock();}
+}
