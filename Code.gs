@@ -1,4 +1,4 @@
-// TSShourtracker backend: Google Apps Script bound to a Google Sheet. Code.gs v52.
+// TSShourtracker backend: Google Apps Script bound to a Google Sheet. Code.gs v53.
 // Deploy > New deployment > Web app, Execute as: Me, Access: Anyone. Paste the /exec URL into index.html (API const).
 const TZ='America/New_York';
 // Clock in/out mail always goes here. EMP to/cc must not send anywhere else.
@@ -22,7 +22,13 @@ const EMP={
  '3783':{name:'Austyn Roach',rate:25,otEligible:false,to:CLOCK_TO,cc:'',weekReport:true,shiftPay:true},
  '4875':{name:'Stratton Ponder',rate:22,otEligible:false,to:CLOCK_TO,cc:'',weekReport:true,shiftPay:true},
  '5900':{name:'Trent Phillips',rate:30,otEligible:true,to:CLOCK_TO,cc:'',weekReport:true,shiftPay:true},
- '4441':{name:'Blake Noblin',rate:20,otEligible:false,to:CLOCK_TO,cc:'',weekReport:true,shiftPay:true}};
+ '4441':{name:'Blake Noblin',rate:20,otEligible:false,to:CLOCK_TO,cc:'',weekReport:true,shiftPay:true},
+ '5493':{name:'Naim Lawson',rate:30,otEligible:false,to:CLOCK_TO,cc:'',weekReport:true,shiftPay:true},
+ '5278':{name:'Cole Austin',rate:22,otEligible:false,to:CLOCK_TO,cc:'',weekReport:true,shiftPay:true},
+ '9153':{name:'Owen Croft',rate:20,otEligible:false,to:CLOCK_TO,cc:'',weekReport:true,shiftPay:true},
+ '3520':{name:'Caleb Wiesing',rate:22,otEligible:false,to:CLOCK_TO,cc:'',weekReport:true,shiftPay:true},
+ '2460':{name:'Marcus Carabello',rate:35,otEligible:false,to:CLOCK_TO,cc:'',weekReport:true,shiftPay:true},
+ '3908':{name:'David Dunn',rate:25,otEligible:false,to:CLOCK_TO,cc:'',weekReport:true,shiftPay:true}};
 // Missing otEligible counts as eligible so older rows keep 1.5x over 40 hours.
 function otEligible_(e){return !e||e.otEligible!==false;}
 function paid_(e){return !e||e.admin!==true;}
